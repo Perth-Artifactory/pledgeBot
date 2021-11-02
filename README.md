@@ -12,15 +12,15 @@ Project pledge system for Slack
 
 ### Create a pledge
 
-`/pledge create <id>`
+`/create <id>`
 
 Create a new pledge. `id` must be comprised of alphanumeric characters as well as `- and _`
 
 ### Update pledge details
 
-`/pledge update <id> <title|description|total|image> data`
+`/update <id>`
 
-Update the details of a pledge. `id` should be previously created with `/pledge create`
+Bringe up an interface for updating the details of a pledge. `id` should be previously created with `/pledge create`
 
 * `title` - The name of the project
 * `description` - A description of what the project is and why it would be helpful
@@ -29,13 +29,13 @@ Update the details of a pledge. `id` should be previously created with `/pledge 
 
 ### Promote a pledge
 
-`/pledge promote <id> <channel>`
+`/promote <id> <channel>`
 
 Send a summary of a specific pledge to a channel
 
 ### Contribute to a pledge
 
-`/pledge donate <id> <amount>`
+`/donate <id> <amount>`
 
 Pledge to contribute $`<amount>` to a pledge
 
