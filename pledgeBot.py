@@ -435,7 +435,7 @@ def entryPoints(ack, respond, command, client, body):
                 # View identifier
                 "callback_id": "updateData",
                 "title": {"type": "plain_text", "text": "Create a pledge"},
-                "submit": {"type": "plain_text", "text": "Update!"},
+                "submit": {"type": "plain_text", "text": "Create!"},
                 "private_metadata": id,
                 "blocks": constructEdit(id=id)}
         )
@@ -823,7 +823,7 @@ def handle_some_action(ack, body, client):
             # View identifier
             "callback_id": "updateData",
             "title": {"type": "plain_text", "text": "Create a pledge"},
-            "submit": {"type": "plain_text", "text": "Update!"},
+            "submit": {"type": "plain_text", "text": "Create!"},
             "private_metadata": id,
             "blocks": constructEdit(id=id)}
     )
