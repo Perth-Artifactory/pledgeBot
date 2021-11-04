@@ -5,40 +5,26 @@ Project pledge system for Slack
 ## Requirements
 
 * [slack_bolt](https://pypi.org/project/slack-bolt/)
+* Images from https://github.com/laserlemon/slack_progress_bar
 
 ## Configuration
 
-## Slash commands
+Copy `config.json.example` and `projects.json.example`. Technically `project.json` could start with just `{}`.
 
-### Create a pledge
+## Usage
 
-`/create <id>`
+### Slash commands
 
-Create a new pledge. `id` must be comprised of alphanumeric characters as well as `- and _`
+All commands are now contained within `/pledge`
 
-### Update pledge details
+* `/pledge create` - Generate a random ID and populate an edit modal. This hides the project selection dropdown.
+* `/pledge update` - Populate an edit modal. Because Slack tries to preserve user input on modal updates we use `slackIdShuffle` to add junk data to the end of input fields.
+* `/pledge promote` - Opens a modal that allows you to select a project and a channel. The bot can post in any public channel without membership (as opposed to private channels). The conversation dropdown is thus restricted to public channels.
 
-`/update <id>`
+### App home
 
-Bringe up an interface for updating the details of a pledge. `id` should be previously created with `/pledge create`
+Populated with a list of all projects and some help dialogue. The page is updated when you visit the tab or press a donate button. This also includes the only way for people to track which projects they've pledged to. Because of Slacks aforementioned input preservation the donate custom amount field doesn't update to a new amount in some conditions.
 
-* `title` - The name of the project
-* `description` - A description of what the project is and why it would be helpful
-* `total` - The total amount of money required to fund the project. This is generally optional but is required for some features (pledge completion and % contributions)
-* `image` - A promotional image of the project. Remember that this will typicall be displayed quite small so text etc.
+## Development
 
-### Promote a pledge
-
-`/promote <id> <channel>`
-
-Send a summary of a specific pledge to a channel
-
-### Contribute to a pledge
-
-`/donate <id> <amount>`
-
-Pledge to contribute $`<amount>` to a pledge
-
-## App home
-
-TODO
+Bugs and improvements are getting documented as issues, no real todo. All future changes should be backwards compatible with existing project stores.
