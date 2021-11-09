@@ -86,6 +86,17 @@ def slackIdShuffle(field,r=False):
         return field.split("SHUFFLE")[0]
     return "{}SHUFFLE{}".format(field,''.join(random.choices(string.ascii_letters + string.digits, k=16)))
 
+def checkBadCurrency(s):
+    try:
+        s = int(s)
+    except ValueError:
+        return "Donation pledges must be a number. `{}` wasn't recognised.".format(s)
+
+    if int(s) < 1:
+        return "Donation pledges must be a positive number."
+
+    return False
+
 #####################
 # Display functions #
 #####################
@@ -611,16 +622,11 @@ def updateData(ack, body):
 
 
     total = data[total_shuffled]["plain_text_input-action"]["value"].replace("$","")
-    try:
-        total = int(total)
-    except ValueError:
-        errors[total_shuffled] = "The total cost must be a number!"
-
-    if errors:
-        ack({"response_action": "errors",
-             "errors": errors})
-        return ""
+    if checkBadCurrency(total):
+        errors[total_shuffled] = checkBadCurrency(total)
+        ack({"response_action": "errors", "errors": errors})
     else:
+        total = int(total)
         ack()
 
     # Get existing project info
@@ -696,12 +702,15 @@ def handle_some_action(ack, body, respond, say, client):
     respond(blocks = pledge(id, "remaining", user))
 
 @app.action("donateAmount")
-def handle_some_action(ack, body, respond):
+def handle_some_action(ack, body, respond, say):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["block_id"]
     amount = body["actions"][0]["value"]
-    respond(blocks = pledge(id, amount, user))
+    if checkBadCurrency(amount):
+        respond(text=checkBadCurrency(amount), replace_original=False, response_type="ephemeral")
+    else:
+        respond(blocks = pledge(id, amount, user))
 
 # Donate buttons with home update
 
@@ -733,14 +742,17 @@ def handle_some_action(ack, body, event, client):
     updateHome(event=event, client=client)
 
 @app.action("donateAmount_home")
-def handle_some_action(ack, body, event, client):
+def handle_some_action(ack, body, event, client, say):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["block_id"]
     amount = body["actions"][0]["value"]
     event = {"user":user}
-    pledge(id, amount, user)
-    updateHome(event=event, client=client)
+    if checkBadCurrency(amount):
+        say(text=checkBadCurrency(amount), channel=user)
+    else:
+        pledge(id, amount, user)
+        updateHome(event=event, client=client)
 
 @app.action("conversationSelector")
 def handle_some_action(ack, body, logger):
