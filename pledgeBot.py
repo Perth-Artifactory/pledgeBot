@@ -642,13 +642,16 @@ def updateData(ack, body, client):
     updateHome(user=user, client=client)
 
 @app.view("promoteProject")
-def handle_view_events(ack, body, logger):
+def handle_view_events(ack, body):
     ack()
     id = body["view"]["state"]["values"]["promote"]["projectPreviewSelector"]["selected_option"]["value"]
     channel = body["view"]["state"]["values"]["promote"]["conversationSelector"]["selected_conversation"]
     title = getProject(id)["title"]
     print("sending {} ({}) to {}".format(title,id,channel))
-    #respond(blocks=displayProject(id)+displaySpacer()+displayDonate(id),response_type="in_channel")
+
+    # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
+    app.client.chat_postMessage(channel=channel,
+                                text="<@{}> has promoted a project, check it out!".format(body["user"]["id"]))
     app.client.chat_postMessage(channel=channel,
                                 blocks=displayProject(id)+displaySpacer()+displayDonate(id),
                                 text="Check out our fundraiser for: {}".format(title))
