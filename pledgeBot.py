@@ -599,7 +599,7 @@ def updateHome(user, client):
     )
 
 @app.view("updateData")
-def updateData(ack, body):
+def updateData(ack, body, client):
     data = body["view"]["state"]["values"]
     if "private_metadata" in body["view"].keys():
         id = body["view"]["private_metadata"]
@@ -639,6 +639,7 @@ def updateData(ack, body):
             if "plain_text_input-action" in data[v].keys():
                 project[v_clean] = data[v]["plain_text_input-action"]["value"]
     writeProject(id,project,user)
+    updateHome(user=user, client=client)
 
 @app.view("promoteProject")
 def handle_view_events(ack, body, logger):
@@ -711,13 +712,12 @@ def handle_some_action(ack, body, respond, say):
 # Donate buttons with home update
 
 @app.action("donate10_home")
-def handle_some_action(ack, body, event, client):
+def handle_some_action(ack, body, client):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["value"]
-    event = {"user":user}
     pledge(id, 10, user, percentage=True)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donate20_home")
 def handle_some_action(ack, body, event, client):
@@ -735,7 +735,7 @@ def handle_some_action(ack, body, event, client):
     id = body["actions"][0]["value"]
     event = {"user":user}
     pledge(id, "remaining", user)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donateAmount_home")
 def handle_some_action(ack, body, event, client, say):
