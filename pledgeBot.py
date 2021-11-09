@@ -67,17 +67,27 @@ def pledge(id, amount, user, percentage=False):
     writeProject(id,project,user=False)
     return displayProject(id)+displaySpacer()+displayDonate(id)
 
-def projectOptions():
+def projectOptions(restricted = False):
     projects = loadProjects()
     options = []
     for project in projects:
-        options.append({
-                      "text": {
-                        "type": "plain_text",
-                        "text": projects[project]["title"]
-                      },
-                      "value": project
-                    })
+        if restricted:
+            if projects[project]["created by"] == restricted:
+                options.append({
+                              "text": {
+                                "type": "plain_text",
+                                "text": projects[project]["title"]
+                              },
+                              "value": project
+                            })
+        else:
+            options.append({
+                          "text": {
+                            "type": "plain_text",
+                            "text": projects[project]["title"]
+                          },
+                          "value": project
+                        })
     return options
 
 def slackIdShuffle(field,r=False):
@@ -536,7 +546,7 @@ def updateHome(user, client):
 			"type": "section",
 			"text": {
 				"type": "mrkdwn",
-				"text": "You can either update a project using `/pledge update` or by using the button here.\n We've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
+				"text": "You can either update a project using `/pledge update` or by using the button here.\n You can only update projects you've created. Within that we've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
 			},
 			"accessory": {
 				"type": "button",
@@ -853,8 +863,11 @@ def handle_some_action(ack, body, client):
 ### info ###
 
 @app.options("projectSelector")
-def sendOptions(ack):
-    ack(options=projectOptions())
+def sendOptions(ack, body, client):
+    if auth(user=body["user"]["id"], client=client):
+        ack(options=projectOptions())
+    else:
+        ack(options=projectOptions(restricted=body["user"]["id"]))
 
 @app.options("projectPreviewSelector")
 def handle_some_options(ack):
