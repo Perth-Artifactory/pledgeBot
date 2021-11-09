@@ -97,6 +97,16 @@ def checkBadCurrency(s):
 
     return False
 
+def auth(client,user):
+    r = app.client.usergroups_list(include_users=True)
+    groups = r.data["usergroups"]
+    for group in groups:
+        if group["id"] == config["admin_group"]:
+            authUsers = group['users']
+            if user in authUsers:
+                return True
+    return False
+
 #####################
 # Display functions #
 #####################
