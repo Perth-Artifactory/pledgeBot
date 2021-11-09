@@ -86,6 +86,17 @@ def slackIdShuffle(field,r=False):
         return field.split("SHUFFLE")[0]
     return "{}SHUFFLE{}".format(field,''.join(random.choices(string.ascii_letters + string.digits, k=16)))
 
+def checkBadCurrency(s):
+    try:
+        s = int(s)
+    except ValueError:
+        return "Donation pledges must be a number. `{}` wasn't recognised.".format(s)
+
+    if int(s) < 1:
+        return "Donation pledges must be a positive number."
+
+    return False
+
 #####################
 # Display functions #
 #####################
@@ -435,7 +446,7 @@ def entryPoints(ack, respond, command, client, body):
                 # View identifier
                 "callback_id": "updateData",
                 "title": {"type": "plain_text", "text": "Create a pledge"},
-                "submit": {"type": "plain_text", "text": "Update!"},
+                "submit": {"type": "plain_text", "text": "Create!"},
                 "private_metadata": id,
                 "blocks": constructEdit(id=id)}
         )
@@ -476,8 +487,7 @@ def entryPoints(ack, respond, command, client, body):
 
 ### Actions ###
 
-def updateHome(event, client):
-    user_id = event["user"]
+def updateHome(user, client):
     docs = [
             {
 			"type": "header",
@@ -491,7 +501,7 @@ def updateHome(event, client):
 			"type": "section",
 			"text": {
 				"type": "mrkdwn",
-				"text": "You can either create a new project using `/pledge create` or by using the button on the right.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead."
+				"text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead."
 			},
 			"accessory": {
 				"type": "button",
@@ -516,7 +526,7 @@ def updateHome(event, client):
 			"type": "section",
 			"text": {
 				"type": "mrkdwn",
-				"text": "You can either update a project using `/pledge update` or by using the button on the right.\n We've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
+				"text": "You can either update a project using `/pledge update` or by using the button here.\n We've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
 			},
 			"accessory": {
 				"type": "button",
@@ -566,12 +576,12 @@ def updateHome(event, client):
 			"type": "section",
 			"text": {
 				"type": "mrkdwn",
-				"text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively reaching out to a <!subteam^SFH110QD8> committee member will put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150>"
+				"text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively reaching out to a <!subteam^SFH110QD8> committee member will put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150> or raise an issue on <https://github.com/Perth-Artifactory/pledgeBot/issues|GitHub>."
 			}
 		}]
 
     client.views_publish(
-        user_id=user_id,
+        user_id=user,
         view={
             # Home tabs must be enabled in your app configuration page under "App Home"
             # and your app must be subscribed to the app_home_opened event
@@ -584,12 +594,12 @@ def updateHome(event, client):
             				"text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
             			}
             		}
-            ] + displaySpacer() + displayHomeProjects(user=user_id) + docs,
+            ] + displaySpacer() + displayHomeProjects(user=user) + docs,
         },
     )
 
 @app.view("updateData")
-def updateData(ack, body):
+def updateData(ack, body, client):
     data = body["view"]["state"]["values"]
     if "private_metadata" in body["view"].keys():
         id = body["view"]["private_metadata"]
@@ -601,9 +611,7 @@ def updateData(ack, body):
     errors = {}
 
     # Find our slackIdShuffle'd field
-    pprint(data)
     for field in data:
-        print(field)
         if slackIdShuffle(field,r=True) == "total":
             total_shuffled = field
 
@@ -611,16 +619,12 @@ def updateData(ack, body):
 
 
     total = data[total_shuffled]["plain_text_input-action"]["value"].replace("$","")
-    try:
-        total = int(total)
-    except ValueError:
-        errors[total_shuffled] = "The total cost must be a number!"
-
-    if errors:
-        ack({"response_action": "errors",
-             "errors": errors})
-        return ""
+    if checkBadCurrency(total):
+        errors[total_shuffled] = checkBadCurrency(total)
+        ack({"response_action": "errors", "errors": errors})
+        return False
     else:
+        total = int(total)
         ack()
 
     # Get existing project info
@@ -635,15 +639,19 @@ def updateData(ack, body):
             if "plain_text_input-action" in data[v].keys():
                 project[v_clean] = data[v]["plain_text_input-action"]["value"]
     writeProject(id,project,user)
+    updateHome(user=user, client=client)
 
 @app.view("promoteProject")
-def handle_view_events(ack, body, logger):
+def handle_view_events(ack, body):
     ack()
     id = body["view"]["state"]["values"]["promote"]["projectPreviewSelector"]["selected_option"]["value"]
     channel = body["view"]["state"]["values"]["promote"]["conversationSelector"]["selected_conversation"]
     title = getProject(id)["title"]
     print("sending {} ({}) to {}".format(title,id,channel))
-    #respond(blocks=displayProject(id)+displaySpacer()+displayDonate(id),response_type="in_channel")
+
+    # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
+    app.client.chat_postMessage(channel=channel,
+                                text="<@{}> has promoted a project, check it out!".format(body["user"]["id"]))
     app.client.chat_postMessage(channel=channel,
                                 blocks=displayProject(id)+displaySpacer()+displayDonate(id),
                                 text="Check out our fundraiser for: {}".format(title))
@@ -652,8 +660,6 @@ def handle_view_events(ack, body, logger):
 def projectSelected(ack, body, respond, client):
     ack()
     id = body["view"]["state"]["values"]["projectDropdown"]["projectSelector"]["selected_option"]["value"]
-    print(id)
-    print("updated edit screen")
     #id = body["actions"][0]["selected_option"]["value"]
     view_id = body["container"]["view_id"]
     project = getProject(id)
@@ -696,23 +702,25 @@ def handle_some_action(ack, body, respond, say, client):
     respond(blocks = pledge(id, "remaining", user))
 
 @app.action("donateAmount")
-def handle_some_action(ack, body, respond):
+def handle_some_action(ack, body, respond, say):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["block_id"]
     amount = body["actions"][0]["value"]
-    respond(blocks = pledge(id, amount, user))
+    if checkBadCurrency(amount):
+        respond(text=checkBadCurrency(amount), replace_original=False, response_type="ephemeral")
+    else:
+        respond(blocks = pledge(id, amount, user))
 
 # Donate buttons with home update
 
 @app.action("donate10_home")
-def handle_some_action(ack, body, event, client):
+def handle_some_action(ack, body, client):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["value"]
-    event = {"user":user}
     pledge(id, 10, user, percentage=True)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donate20_home")
 def handle_some_action(ack, body, event, client):
@@ -721,7 +729,7 @@ def handle_some_action(ack, body, event, client):
     id = body["actions"][0]["value"]
     event = {"user":user}
     pledge(id, 20, user, percentage=True)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donateRest_home")
 def handle_some_action(ack, body, event, client):
@@ -730,17 +738,20 @@ def handle_some_action(ack, body, event, client):
     id = body["actions"][0]["value"]
     event = {"user":user}
     pledge(id, "remaining", user)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donateAmount_home")
-def handle_some_action(ack, body, event, client):
+def handle_some_action(ack, body, event, client, say):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["block_id"]
     amount = body["actions"][0]["value"]
     event = {"user":user}
-    pledge(id, amount, user)
-    updateHome(event=event, client=client)
+    if checkBadCurrency(amount):
+        say(text=checkBadCurrency(amount), channel=user)
+    else:
+        pledge(id, amount, user)
+        updateHome(user=user, client=client)
 
 @app.action("conversationSelector")
 def handle_some_action(ack, body, logger):
@@ -823,7 +834,7 @@ def handle_some_action(ack, body, client):
             # View identifier
             "callback_id": "updateData",
             "title": {"type": "plain_text", "text": "Create a pledge"},
-            "submit": {"type": "plain_text", "text": "Update!"},
+            "submit": {"type": "plain_text", "text": "Create!"},
             "private_metadata": id,
             "blocks": constructEdit(id=id)}
     )
@@ -842,120 +853,7 @@ def handle_some_options(ack):
 # Update the app home
 @app.event("app_home_opened")
 def app_home_opened(event, client, logger):
-    print("someone opened the home!")
-    updateHome(event=event, client=client)
-    """
-    user_id = event["user"]
-    docs = [
-            {
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": "How to create a project",
-				"emoji": True
-			}
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "You can either create a new project using `/pledge create` or by using the button on the right.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead."
-			},
-			"accessory": {
-				"type": "button",
-				"text": {
-					"type": "plain_text",
-					"text": "Create a project",
-					"emoji": True
-				},
-				"value": "AppHome",
-				"action_id": "createFromHome"
-			}
-		},
-		{
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": "How to update a project",
-				"emoji": True
-			}
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "You can either update a project using `/pledge update` or by using the button on the right.\n We've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
-			},
-			"accessory": {
-				"type": "button",
-				"text": {
-					"type": "plain_text",
-					"text": "Update a project",
-					"emoji": True
-				},
-				"value": "AppHome",
-				"action_id": "updateFromHome"
-			}
-		},
-		{
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": "How to promote a project",
-				"emoji": True
-			}
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "You can either update a project using `/pledge promote` or by using the buttons next to each project listed above.\n\n pledgeBot will post a promotional message in a public channel of your choosing. For channels dedicated to a particular project you could pin the promotional message as an easy way of reminding people that they can donate.\nBeyond the technical functions we suggest actively talking about your project in the most relevant channel. If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to start."
-			},
-			"accessory": {
-				"type": "button",
-				"text": {
-					"type": "plain_text",
-					"text": "Promote a project",
-					"emoji": True
-				},
-				"value": "AppHome",
-				"action_id": "promoteFromHome"
-			}
-		},
-		{
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": "Further help",
-				"emoji": True
-			}
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively reaching out to a <!subteam^SFH110QD8> committee member will put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150>"
-			}
-		}]
-
-    client.views_publish(
-        user_id=user_id,
-        view={
-            # Home tabs must be enabled in your app configuration page under "App Home"
-            # and your app must be subscribed to the app_home_opened event
-            "type": "home",
-            "blocks": [
-                		{
-            			"type": "section",
-            			"text": {
-            				"type": "mrkdwn",
-            				"text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
-            			}
-            		}
-            ] + displaySpacer() + displayHomeProjects(user=user_id) + docs,
-        },
-    )"""
-
+    updateHome(user=event["user"], client=client)
 
 # Start listening for commands
 if __name__ == "__main__":

@@ -9,7 +9,8 @@ Project pledge system for Slack
 
 ## Configuration
 
-Copy `config.json.example` and `projects.json.example`. Technically `project.json` could start with just `{}`.
+* Copy `config.json.example` and `projects.json.example`. Technically `project.json` could start with just `{}`.
+* Add the [progress bar emoji](./images/slack_progress_bar) to Slack.
 
 ## Usage
 
