@@ -487,8 +487,7 @@ def entryPoints(ack, respond, command, client, body):
 
 ### Actions ###
 
-def updateHome(event, client):
-    user_id = event["user"]
+def updateHome(user, client):
     docs = [
             {
 			"type": "header",
@@ -582,7 +581,7 @@ def updateHome(event, client):
 		}]
 
     client.views_publish(
-        user_id=user_id,
+        user_id=user,
         view={
             # Home tabs must be enabled in your app configuration page under "App Home"
             # and your app must be subscribed to the app_home_opened event
@@ -595,7 +594,7 @@ def updateHome(event, client):
             				"text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
             			}
             		}
-            ] + displaySpacer() + displayHomeProjects(user=user_id) + docs,
+            ] + displaySpacer() + displayHomeProjects(user=user) + docs,
         },
     )
 
@@ -612,9 +611,7 @@ def updateData(ack, body):
     errors = {}
 
     # Find our slackIdShuffle'd field
-    pprint(data)
     for field in data:
-        print(field)
         if slackIdShuffle(field,r=True) == "total":
             total_shuffled = field
 
@@ -625,6 +622,7 @@ def updateData(ack, body):
     if checkBadCurrency(total):
         errors[total_shuffled] = checkBadCurrency(total)
         ack({"response_action": "errors", "errors": errors})
+        return False
     else:
         total = int(total)
         ack()
@@ -658,8 +656,6 @@ def handle_view_events(ack, body, logger):
 def projectSelected(ack, body, respond, client):
     ack()
     id = body["view"]["state"]["values"]["projectDropdown"]["projectSelector"]["selected_option"]["value"]
-    print(id)
-    print("updated edit screen")
     #id = body["actions"][0]["selected_option"]["value"]
     view_id = body["container"]["view_id"]
     project = getProject(id)
@@ -730,7 +726,7 @@ def handle_some_action(ack, body, event, client):
     id = body["actions"][0]["value"]
     event = {"user":user}
     pledge(id, 20, user, percentage=True)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donateRest_home")
 def handle_some_action(ack, body, event, client):
@@ -752,7 +748,7 @@ def handle_some_action(ack, body, event, client, say):
         say(text=checkBadCurrency(amount), channel=user)
     else:
         pledge(id, amount, user)
-        updateHome(event=event, client=client)
+        updateHome(user=user, client=client)
 
 @app.action("conversationSelector")
 def handle_some_action(ack, body, logger):
@@ -854,7 +850,7 @@ def handle_some_options(ack):
 # Update the app home
 @app.event("app_home_opened")
 def app_home_opened(event, client, logger):
-    updateHome(event=event, client=client)
+    updateHome(user=event["user"], client=client)
 
 # Start listening for commands
 if __name__ == "__main__":
