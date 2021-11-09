@@ -67,17 +67,27 @@ def pledge(id, amount, user, percentage=False):
     writeProject(id,project,user=False)
     return displayProject(id)+displaySpacer()+displayDonate(id)
 
-def projectOptions():
+def projectOptions(restricted = False):
     projects = loadProjects()
     options = []
     for project in projects:
-        options.append({
-                      "text": {
-                        "type": "plain_text",
-                        "text": projects[project]["title"]
-                      },
-                      "value": project
-                    })
+        if restricted:
+            if projects[project]["created by"] == restricted:
+                options.append({
+                              "text": {
+                                "type": "plain_text",
+                                "text": projects[project]["title"]
+                              },
+                              "value": project
+                            })
+        else:
+            options.append({
+                          "text": {
+                            "type": "plain_text",
+                            "text": projects[project]["title"]
+                          },
+                          "value": project
+                        })
     return options
 
 def slackIdShuffle(field,r=False):
@@ -85,6 +95,27 @@ def slackIdShuffle(field,r=False):
     if r:
         return field.split("SHUFFLE")[0]
     return "{}SHUFFLE{}".format(field,''.join(random.choices(string.ascii_letters + string.digits, k=16)))
+
+def checkBadCurrency(s):
+    try:
+        s = int(s)
+    except ValueError:
+        return "Donation pledges must be a number. `{}` wasn't recognised.".format(s)
+
+    if int(s) < 1:
+        return "Donation pledges must be a positive number."
+
+    return False
+
+def auth(client,user):
+    r = app.client.usergroups_list(include_users=True)
+    groups = r.data["usergroups"]
+    for group in groups:
+        if group["id"] == config["admin_group"]:
+            authUsers = group['users']
+            if user in authUsers:
+                return True
+    return False
 
 #####################
 # Display functions #
@@ -476,8 +507,7 @@ def entryPoints(ack, respond, command, client, body):
 
 ### Actions ###
 
-def updateHome(event, client):
-    user_id = event["user"]
+def updateHome(user, client):
     docs = [
             {
 			"type": "header",
@@ -516,7 +546,7 @@ def updateHome(event, client):
 			"type": "section",
 			"text": {
 				"type": "mrkdwn",
-				"text": "You can either update a project using `/pledge update` or by using the button here.\n We've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
+				"text": "You can either update a project using `/pledge update` or by using the button here.\n You can only update projects you've created. Within that we've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
 			},
 			"accessory": {
 				"type": "button",
@@ -571,7 +601,7 @@ def updateHome(event, client):
 		}]
 
     client.views_publish(
-        user_id=user_id,
+        user_id=user,
         view={
             # Home tabs must be enabled in your app configuration page under "App Home"
             # and your app must be subscribed to the app_home_opened event
@@ -584,12 +614,12 @@ def updateHome(event, client):
             				"text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
             			}
             		}
-            ] + displaySpacer() + displayHomeProjects(user=user_id) + docs,
+            ] + displaySpacer() + displayHomeProjects(user=user) + docs,
         },
     )
 
 @app.view("updateData")
-def updateData(ack, body):
+def updateData(ack, body, client):
     data = body["view"]["state"]["values"]
     if "private_metadata" in body["view"].keys():
         id = body["view"]["private_metadata"]
@@ -601,9 +631,7 @@ def updateData(ack, body):
     errors = {}
 
     # Find our slackIdShuffle'd field
-    pprint(data)
     for field in data:
-        print(field)
         if slackIdShuffle(field,r=True) == "total":
             total_shuffled = field
 
@@ -611,16 +639,12 @@ def updateData(ack, body):
 
 
     total = data[total_shuffled]["plain_text_input-action"]["value"].replace("$","")
-    try:
-        total = int(total)
-    except ValueError:
-        errors[total_shuffled] = "The total cost must be a number!"
-
-    if errors:
-        ack({"response_action": "errors",
-             "errors": errors})
-        return ""
+    if checkBadCurrency(total):
+        errors[total_shuffled] = checkBadCurrency(total)
+        ack({"response_action": "errors", "errors": errors})
+        return False
     else:
+        total = int(total)
         ack()
 
     # Get existing project info
@@ -635,15 +659,19 @@ def updateData(ack, body):
             if "plain_text_input-action" in data[v].keys():
                 project[v_clean] = data[v]["plain_text_input-action"]["value"]
     writeProject(id,project,user)
+    updateHome(user=user, client=client)
 
 @app.view("promoteProject")
-def handle_view_events(ack, body, logger):
+def handle_view_events(ack, body):
     ack()
     id = body["view"]["state"]["values"]["promote"]["projectPreviewSelector"]["selected_option"]["value"]
     channel = body["view"]["state"]["values"]["promote"]["conversationSelector"]["selected_conversation"]
     title = getProject(id)["title"]
     print("sending {} ({}) to {}".format(title,id,channel))
-    #respond(blocks=displayProject(id)+displaySpacer()+displayDonate(id),response_type="in_channel")
+
+    # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
+    app.client.chat_postMessage(channel=channel,
+                                text="<@{}> has promoted a project, check it out!".format(body["user"]["id"]))
     app.client.chat_postMessage(channel=channel,
                                 blocks=displayProject(id)+displaySpacer()+displayDonate(id),
                                 text="Check out our fundraiser for: {}".format(title))
@@ -652,8 +680,6 @@ def handle_view_events(ack, body, logger):
 def projectSelected(ack, body, respond, client):
     ack()
     id = body["view"]["state"]["values"]["projectDropdown"]["projectSelector"]["selected_option"]["value"]
-    print(id)
-    print("updated edit screen")
     #id = body["actions"][0]["selected_option"]["value"]
     view_id = body["container"]["view_id"]
     project = getProject(id)
@@ -696,23 +722,25 @@ def handle_some_action(ack, body, respond, say, client):
     respond(blocks = pledge(id, "remaining", user))
 
 @app.action("donateAmount")
-def handle_some_action(ack, body, respond):
+def handle_some_action(ack, body, respond, say):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["block_id"]
     amount = body["actions"][0]["value"]
-    respond(blocks = pledge(id, amount, user))
+    if checkBadCurrency(amount):
+        respond(text=checkBadCurrency(amount), replace_original=False, response_type="ephemeral")
+    else:
+        respond(blocks = pledge(id, amount, user))
 
 # Donate buttons with home update
 
 @app.action("donate10_home")
-def handle_some_action(ack, body, event, client):
+def handle_some_action(ack, body, client):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["value"]
-    event = {"user":user}
     pledge(id, 10, user, percentage=True)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donate20_home")
 def handle_some_action(ack, body, event, client):
@@ -721,7 +749,7 @@ def handle_some_action(ack, body, event, client):
     id = body["actions"][0]["value"]
     event = {"user":user}
     pledge(id, 20, user, percentage=True)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donateRest_home")
 def handle_some_action(ack, body, event, client):
@@ -730,17 +758,20 @@ def handle_some_action(ack, body, event, client):
     id = body["actions"][0]["value"]
     event = {"user":user}
     pledge(id, "remaining", user)
-    updateHome(event=event, client=client)
+    updateHome(user=user, client=client)
 
 @app.action("donateAmount_home")
-def handle_some_action(ack, body, event, client):
+def handle_some_action(ack, body, event, client, say):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["block_id"]
     amount = body["actions"][0]["value"]
     event = {"user":user}
-    pledge(id, amount, user)
-    updateHome(event=event, client=client)
+    if checkBadCurrency(amount):
+        say(text=checkBadCurrency(amount), channel=user)
+    else:
+        pledge(id, amount, user)
+        updateHome(user=user, client=client)
 
 @app.action("conversationSelector")
 def handle_some_action(ack, body, logger):
@@ -832,8 +863,11 @@ def handle_some_action(ack, body, client):
 ### info ###
 
 @app.options("projectSelector")
-def sendOptions(ack):
-    ack(options=projectOptions())
+def sendOptions(ack, body, client):
+    if auth(user=body["user"]["id"], client=client):
+        ack(options=projectOptions())
+    else:
+        ack(options=projectOptions(restricted=body["user"]["id"]))
 
 @app.options("projectPreviewSelector")
 def handle_some_options(ack):
@@ -842,7 +876,7 @@ def handle_some_options(ack):
 # Update the app home
 @app.event("app_home_opened")
 def app_home_opened(event, client, logger):
-    updateHome(event=event, client=client)
+    updateHome(user=event["user"], client=client)
 
 # Start listening for commands
 if __name__ == "__main__":

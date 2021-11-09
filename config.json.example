@@ -1,5 +1,6 @@
 {
   "SLACK_BOT_TOKEN": "",
   "SLACK_APP_TOKEN": "",
-  "projects": "projects.json"
+  "projects": "projects.json",
+  "admin_group": "SXXXXXXX"
 }
