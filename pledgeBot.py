@@ -43,7 +43,7 @@ def getProject(id):
     if id in projects.keys():
         return projects[id]
     else:
-        return {"title":"Your new project","desc":"","img":None,"total":0}
+        return {"title":"Your new project","desc":"","img":None,"total":0,"approved":False}
 
 def validateId(id):
     allowed = set(string.ascii_letters + string.digits + '_' + '-')
@@ -250,6 +250,28 @@ def displayProject(id):
 		}]
     return blocks
 
+def displayApprove(id):
+    blocks = [
+	{
+		"type": "actions",
+		"elements": [
+			{
+				"type": "button",
+				"text": {
+					"type": "plain_text",
+					"text": "Approve project",
+					"emoji": True
+				},
+				"value": id,
+				"action_id": "approve"
+			}
+		]
+	}]
+    return blocks
+
+
+
+
 def displayDonate(id,user=None,home=False):
     homeadd = ""
     if home:
@@ -419,14 +441,30 @@ def createProgressBar(current, total, segments=7):
 
     return final_s
 
-def displayHomeProjects(user):
+def displayHomeProjects(user,client):
     projects = loadProjects()
     blocks = []
     for project in projects:
-        blocks += displayProject(project)
-        blocks += displayDonate(project,user=user,home=True)
-        #blocks += displayPromoteButton()
-        blocks += displaySpacer()
+        if projects[project]["approved"]:
+            blocks += displayProject(project)
+            blocks += displayDonate(project,user=user,home=True)
+            blocks += displaySpacer()
+    if auth(user=user, client=client):
+        blocks += [{
+			"type": "context",
+			"elements": [
+				{
+					"type": "plain_text",
+					"text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. ",
+					"emoji": True
+				}
+			]
+		}]
+        for project in projects:
+            if not projects[project]["approved"]:
+                blocks += displayProject(project)
+                blocks += displayApprove(project)
+                blocks += displaySpacer()
     return blocks
 
 
@@ -614,7 +652,7 @@ def updateHome(user, client):
             				"text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
             			}
             		}
-            ] + displaySpacer() + displayHomeProjects(user=user) + docs,
+            ] + displaySpacer() + displayHomeProjects(client=client,user=user) + docs,
         },
     )
 
@@ -859,6 +897,15 @@ def handle_some_action(ack, body, client):
             "blocks": constructEdit(id=id)}
     )
 
+@app.action("approve")
+def handle_some_action(ack, body, client):
+    ack()
+    id = body["actions"][0]["value"]
+    user = body["user"]["id"]
+    project = getProject(id)
+    project["approved"] = True
+    writeProject(id,project,user)
+    updateHome(user=user, client=client)
 
 ### info ###
 
