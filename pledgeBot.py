@@ -450,20 +450,21 @@ def displayHomeProjects(user,client):
             blocks += displayDonate(project,user=user,home=True)
             blocks += displaySpacer()
     if auth(user=user, client=client):
-        blocks += [{
-			"type": "context",
-			"elements": [
-				{
-					"type": "plain_text",
+        blocks += [{"type": "context","elements": [{"type": "plain_text",
 					"text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. ",
-					"emoji": True
-				}
-			]
-		}]
+					"emoji": True}]}]
         for project in projects:
             if not projects[project]["approved"]:
                 blocks += displayProject(project)
                 blocks += displayApprove(project)
+                blocks += displaySpacer()
+    else:
+        for project in projects:
+            if not projects[project]["approved"] and projects[project]["created by"] == user:
+                blocks += displayProject(project)
+                blocks += [{"type": "context","elements": [{"type": "plain_text",
+        					"text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. Ping a committee member when your project is ready for approval".format(config["admin_group"]),
+        					"emoji": True}]}]
                 blocks += displaySpacer()
     return blocks
 
@@ -559,7 +560,7 @@ def updateHome(user, client):
 			"type": "section",
 			"text": {
 				"type": "mrkdwn",
-				"text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.\nOnce your project has been approved by a member of <!subteam^{}}> your project will appear in the list above.".format(config["admin_group"])
+				"text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.\nOnce your project has been approved by a member of <!subteam^{}> your project will appear in the list above.".format(config["admin_group"])
 			},
 			"accessory": {
 				"type": "button",
