@@ -1,0 +1,90 @@
+body {
+  background-color: #141414;
+  color: white;
+  font-family: 'Arial', sans-serif;
+}
+.main {
+  width: 90%;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+#header {
+  padding: 10px 20px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+#header #title {
+  font-size: 24px;
+  font-weight: bold;
+}
+#header #subtitle {
+  font-size: 18px;
+}
+#header #logoContainer {
+  margin: 10px auto;
+  display: block;
+  width: 80%;
+}
+#header img {
+  max-width: 100%;
+  max-height: 300px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+#header .pageDescription {
+
+}
+#content {
+  display: flex;
+  flex: 1 1;
+  flex-flow: row wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 60px;
+  gap: 30px;
+}
+#content .card {
+  flex-basis: 33%;
+  flex-grow: 1;
+  padding: 10px 20px;
+  border: 3px solid #ff2400;
+}
+@media all and (max-width: 1600px) {
+  #content .card {
+    flex-basis: 25%;
+  }
+}
+@media all and (max-width: 1200px) {
+  #content .card {
+    flex-basis: 33%;
+  }
+}
+@media all and (max-width: 800px) {
+  #content .card {
+    flex-basis: 50%;
+  }
+}
+#content .cardTitle, .cardTitle a {
+  font-weight: bold;
+  color: white;
+  text-decoration: none;
+  font-size: 20px;
+}
+#content .card .cardImage {
+  max-width: 50%;
+}
+#content .card .cardProgressBar {
+  width: 100%;
+  min-width: 100%;
+  height: 20px;
+  border: 1px solid white;
+}
+.cardProgressBar .cardProgressBarInner {
+  height: 100%;
+  background: #ff2400;
+  display: block;
+  margin-right: auto;
+}
