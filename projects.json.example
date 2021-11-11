@@ -1,8 +1,10 @@
-["Rocket_Ship": {
-  "title": "Workshop rocket ship",
-  "desc": "Let's build a rocket ship to take us to space",
-  "total": 3000,
-  "created by": "UXXXXXXXX",
-  "last updated by": "UXXXXXXXX",
-  "img": "https://example.com/example.jpg",
-  }]
+{
+	"Rocket_Ship": {
+		"title": "Workshop rocket ship",
+		"desc": "Let's build a rocket ship to take us to space",
+		"total": 3000,
+		"created by": "UXXXXXXXX",
+		"last updated by": "UXXXXXXXX",
+		"img": "https://example.com/example.jpg"
+	}
+}
