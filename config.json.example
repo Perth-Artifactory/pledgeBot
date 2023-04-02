@@ -1,5 +1,6 @@
 {
   "SLACK_BOT_TOKEN": "",
   "SLACK_APP_TOKEN": "",
+  "tidyhq_token": "",
   "projects": "projects.json"
 }
