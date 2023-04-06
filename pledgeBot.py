@@ -3,7 +3,7 @@
 import json
 import string
 import random
-from pprimport pprint
+from pprint import pprint
 
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
