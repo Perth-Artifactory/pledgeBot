@@ -28,12 +28,15 @@ def writeProject(id, data, user):
         # TODO show old data somewhere in slack
         data["created by"] = user
         data["last updated by"] = user
+        # Projects should default to DGR False
+        data["dgr"] = False
         projects[id] = data
         with open("projects.json","w") as f:
             json.dump(projects, f, indent=4, sort_keys=True)
     else:
         if user:
             data["last updated by"] = user
+        
         projects[id] = data
         with open("projects.json","w") as f:
             json.dump(projects, f, indent=4, sort_keys=True)
@@ -228,6 +231,11 @@ def displayProject(id):
                                 "alt_text": "Project image"
                         }
                 }]
+    
+    if project.get("dgr",False):
+        blocks = blocks + displaySpacer()
+        blocks.append({"type":"context","elements":[{"type":"mrkdwn","text":"Donations to this project are considered gifts to Perth Artifactory Inc and are tax deductible."}]})
+    
     return blocks
 
 def displayDonate(id,user=None,home=False):
@@ -580,11 +588,7 @@ def updateHome(user, client):
                         }
                 }]
 
-    client.views_publish(
-        user_id=user,
-        view={
-            # Home tabs must be enabled in your app configuration page under "App Home"
-            # and your app must be subscribed to the app_home_opened event
+    home_view = {
             "type": "home",
             "blocks": [
                                 {
@@ -595,7 +599,11 @@ def updateHome(user, client):
                                 }
                         }
             ] + displaySpacer() + displayHomeProjects(user=user) + docs,
-        },
+        }
+
+    client.views_publish(
+        user_id=user,
+        view=home_view
     )
 
 @app.view("updateData")

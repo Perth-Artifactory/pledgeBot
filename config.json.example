@@ -2,5 +2,9 @@
   "SLACK_BOT_TOKEN": "",
   "SLACK_APP_TOKEN": "",
   "tidyhq_token": "",
-  "projects": "projects.json"
+  "projects": "projects.json",
+  "tidyhq_token": "",
+  "tidyhq_dgr_category": 123,
+  "tidyhq_project_category": 123,
+  "tidyhq_slack_id_field": ""
 }
