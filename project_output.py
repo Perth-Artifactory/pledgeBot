@@ -27,10 +27,6 @@ def loadProjects():
         return json.load(f)
 
 
-with open("tidyslack.json", "r") as f:
-    users = json.load(f)
-
-
 def lookup(id):
     if id not in users.keys():
         r = app.client.users_info(user=id)
@@ -67,10 +63,27 @@ def send_invoices(p):
         )
         print(r.content)
 
-
 # Initialise slack
 
 app = App(token=config["SLACK_BOT_TOKEN"])
+
+# Populate users from file
+with open("tidyslack.json", "r") as f:
+    users = json.load(f)
+    
+# Get list of slack users from TidyHQ
+r = requests.get(
+    "https://api.tidyhq.com/v1/contacts/",
+    params={"access_token": config["tidyhq_token"]},
+)
+
+for contact in r.json():
+    for field in contact["custom_fields"]:
+        if field["id"] == config["tidyhq_slack_id_field"] and field["value"] not in users.keys():
+            r = app.client.users_info(user=field["value"])
+            users[field["value"]] = (r["user"]["real_name"], r["user"]["name"], contact["contact_id"])
+with open("tidyslack.json", "w") as f:
+    json.dump(users, f, indent=4, sort_keys=True)
 
 projects = loadProjects()
 
