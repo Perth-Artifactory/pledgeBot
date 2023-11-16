@@ -233,7 +233,7 @@ def displayProject(id):
                 }]
     
     if project.get("dgr",False):
-        blocks.append(displaySpacer())
+        blocks = blocks + displaySpacer()
         blocks.append({"type":"context","elements":[{"type":"mrkdwn","text":"Donations to this project are considered gifts to Perth Artifactory Inc and are tax deductible."}]})
     
     return blocks
@@ -588,11 +588,7 @@ def updateHome(user, client):
                         }
                 }]
 
-    client.views_publish(
-        user_id=user,
-        view={
-            # Home tabs must be enabled in your app configuration page under "App Home"
-            # and your app must be subscribed to the app_home_opened event
+    home_view = {
             "type": "home",
             "blocks": [
                                 {
@@ -603,7 +599,11 @@ def updateHome(user, client):
                                 }
                         }
             ] + displaySpacer() + displayHomeProjects(user=user) + docs,
-        },
+        }
+
+    client.views_publish(
+        user_id=user,
+        view=home_view
     )
 
 @app.view("updateData")
