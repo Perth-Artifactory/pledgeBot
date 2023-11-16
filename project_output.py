@@ -38,16 +38,22 @@ def lookup(id):
     return users[id]
 
 def send_invoices(p):
+    if p.get("dgr",False):
+        title_prefix = "Gift/Donation for: "
+        category = config["tidyhq_dgr_category"]
+    else:
+        title_prefix = "Project pledge: "
+        category = config["tidyhq_project_category"]
     for pledge in p["pledges"]:
         amount = p["pledges"][pledge]
         r = requests.post(invoices_url,params={"access_token":config["tidyhq_token"],
                                                "reference":p["title"],
-                                               "name":"Pledge: "+p["title"],
+                                               "name":title_prefix+p["title"],
                                                "amount":amount,
                                                "included_tax_total":amount,
                                                "pre_tax_amount":amount,
                                                "due_date":datetime.now()+timedelta(days=14),
-                                               "category_id":13304,
+                                               "category_id":category,
                                                "contact_id":users[pledge][2],
                                                "metadata":"Automatically added via api"})
         print(r.content)
