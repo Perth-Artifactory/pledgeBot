@@ -63,6 +63,7 @@ def send_invoices(p):
         )
         print(r.content)
 
+
 # Initialise slack
 
 app = App(token=config["SLACK_BOT_TOKEN"])
@@ -70,18 +71,29 @@ app = App(token=config["SLACK_BOT_TOKEN"])
 # Populate users from file
 with open("tidyslack.json", "r") as f:
     users = json.load(f)
-    
+
 # Get list of slack users from TidyHQ
+print("Pulling TidyHQ contacts...")
 r = requests.get(
     "https://api.tidyhq.com/v1/contacts/",
     params={"access_token": config["tidyhq_token"]},
 )
+print("Received {} contacts".format(len(r.json())))
 
+print("Pulling data for Slack users not already cached...")
 for contact in r.json():
     for field in contact["custom_fields"]:
-        if field["id"] == config["tidyhq_slack_id_field"] and field["value"] not in users.keys():
+        if (
+            field["id"] == config["tidyhq_slack_id_field"]
+            and field["value"] not in users.keys()
+        ):
             r = app.client.users_info(user=field["value"])
-            users[field["value"]] = (r["user"]["real_name"], r["user"]["name"], contact["contact_id"])
+            users[field["value"]] = (
+                r["user"].get("real_name", r["user"].get("display_name", r["user"]["name"])),
+                r["user"]["name"],
+                contact["contact_id"],
+            )
+            print(f'Added {r["user"]["name"]} to ({contact["contact_id"]})')
 with open("tidyslack.json", "w") as f:
     json.dump(users, f, indent=4, sort_keys=True)
 
@@ -94,6 +106,9 @@ for project in projects:
             p["title"], lookup(p["created by"])[0], lookup(p["created by"])[1]
         )
     )
+    if "pledges" not in p.keys():
+        print("No pledges yet, skipped")
+        continue
     for pledge in p["pledges"]:
         print(
             "${} - from {} (@{})".format(
