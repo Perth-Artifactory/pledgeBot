@@ -68,6 +68,14 @@ def pledge(id, amount, user, percentage=False):
         amount = int(project["total"] * (amount/100))
     project["pledges"][user] = int(amount)
     writeProject(id,project,user=False)
+    
+    # Notify/thank the donor
+    
+    app.client.chat_postMessage(channel=user,
+                                text=f'We\'ve updated your *total* pledge for "{project["title"]}" to ${amount}. Thank you for your support!')
+    
+    # Send back an updated project block
+    
     return displayProject(id)+displaySpacer()+displayDonate(id)
 
 def projectOptions(restricted = False):
