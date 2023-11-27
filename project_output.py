@@ -40,9 +40,11 @@ def lookup(id):
 def send_invoices(p):
     if p.get("dgr", False):
         title_prefix = "Gift/Donation for: "
+        message_suffix = "\nAs a reminder your donation to this project is tax deductible."
         category = config["tidyhq_dgr_category"]
     else:
         title_prefix = "Project pledge: "
+        message_suffix = ""
         category = config["tidyhq_project_category"]
     for pledge in p["pledges"]:
         amount = p["pledges"][pledge]
@@ -62,6 +64,18 @@ def send_invoices(p):
             },
         )
         print(r.content)
+        
+        # Open a slack conversation with the donor and get the channel ID
+        r = app.client.conversations_open(users=pledge)
+        channel_id = r["channel"]["id"]
+        
+        # Send a message to the donor to let them know an invoice has been created
+        app.client.chat_postMessage(
+            channel=channel_id,
+            text=f'Hi <@{users[pledge][0]}>,\n\nThe funding goal for {p["title"]} has been met. I\'ve created an invoice for ${amount} which you can find in your inbox.{message_suffix}'
+        )
+        
+        print(f'Invoice notification sent to {users[pledge][0]}')
 
 
 # Initialise slack
