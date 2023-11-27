@@ -28,12 +28,15 @@ def writeProject(id, data, user):
         # TODO show old data somewhere in slack
         data["created by"] = user
         data["last updated by"] = user
+        # Projects should default to DGR False
+        data["dgr"] = False
         projects[id] = data
         with open("projects.json","w") as f:
             json.dump(projects, f, indent=4, sort_keys=True)
     else:
         if user:
             data["last updated by"] = user
+        
         projects[id] = data
         with open("projects.json","w") as f:
             json.dump(projects, f, indent=4, sort_keys=True)
@@ -59,11 +62,11 @@ def pledge(id, amount, user, percentage=False):
         current_total = 0
         for pledge in project["pledges"]:
             if pledge != user:
-                current_total += project["pledges"][pledge]
+                current_total += int(project["pledges"][pledge])
         amount = project["total"] - current_total
     if percentage:
         amount = int(project["total"] * (amount/100))
-    project["pledges"][user] = amount
+    project["pledges"][user] = int(amount)
     writeProject(id,project,user=False)
     return displayProject(id)+displaySpacer()+displayDonate(id)
 
@@ -126,89 +129,89 @@ def constructEdit(id):
     if not project["img"]:
         project["img"] = ""
     editbox = [
-		{
-			"type": "input",
+                {
+                        "type": "input",
             "block_id": slackIdShuffle("title"),
-			"element": {
-				"type": "plain_text_input",
-				"action_id": "plain_text_input-action",
-				"initial_value": project["title"],
-				"min_length": 6,
-				"max_length": 64
-			},
-			"label": {
-				"type": "plain_text",
-				"text": "Project Title",
-				"emoji": True
-			},
-			"hint": {
-				"type": "plain_text",
-				"text": "The name of the project.",
-				"emoji": True
-			}
-		},
-		{
-			"type": "input",
+                        "element": {
+                                "type": "plain_text_input",
+                                "action_id": "plain_text_input-action",
+                                "initial_value": project["title"],
+                                "min_length": 6,
+                                "max_length": 64
+                        },
+                        "label": {
+                                "type": "plain_text",
+                                "text": "Project Title",
+                                "emoji": True
+                        },
+                        "hint": {
+                                "type": "plain_text",
+                                "text": "The name of the project.",
+                                "emoji": True
+                        }
+                },
+                {
+                        "type": "input",
             "block_id": slackIdShuffle("total"),
-			"element": {
-				"type": "plain_text_input",
-				"action_id": "plain_text_input-action",
-				"initial_value": str(project["total"])
-			},
-			"label": {
-				"type": "plain_text",
-				"text": "Total cost",
-				"emoji": True
-			},
-			"hint": {
-				"type": "plain_text",
-				"text": "The estimated total cost of the project.",
-				"emoji": True
-			}
-		},
-		{
-			"type": "input",
+                        "element": {
+                                "type": "plain_text_input",
+                                "action_id": "plain_text_input-action",
+                                "initial_value": str(project["total"])
+                        },
+                        "label": {
+                                "type": "plain_text",
+                                "text": "Total cost",
+                                "emoji": True
+                        },
+                        "hint": {
+                                "type": "plain_text",
+                                "text": "The estimated total cost of the project.",
+                                "emoji": True
+                        }
+                },
+                {
+                        "type": "input",
             "block_id": slackIdShuffle("desc"),
-			"element": {
-				"type": "plain_text_input",
-				"action_id": "plain_text_input-action",
+                        "element": {
+                                "type": "plain_text_input",
+                                "action_id": "plain_text_input-action",
                 "multiline": True,
-				"initial_value": project["desc"],
-				"min_length": 64,
-				"max_length": 1000
-			},
-			"label": {
-				"type": "plain_text",
-				"text": "Description",
-				"emoji": True
-			},
-			"hint": {
-				"type": "plain_text",
-				"text": "A description of what the project is and why it would be helpful to the space. This is where you can really sell your project.",
-				"emoji": True
-			}
-		},
-		{
-			"type": "input",
+                                "initial_value": project["desc"],
+                                "min_length": 64,
+                                "max_length": 1000
+                        },
+                        "label": {
+                                "type": "plain_text",
+                                "text": "Description",
+                                "emoji": True
+                        },
+                        "hint": {
+                                "type": "plain_text",
+                                "text": "A description of what the project is and why it would be helpful to the space. This is where you can really sell your project.",
+                                "emoji": True
+                        }
+                },
+                {
+                        "type": "input",
             "block_id": slackIdShuffle("img"),
-			"optional": True,
-			"element": {
-				"type": "plain_text_input",
-				"action_id": "plain_text_input-action",
-				"initial_value": project["img"]
-			},
-			"label": {
-				"type": "plain_text",
-				"text": "Image",
-				"emoji": True
-			},
-			"hint": {
-				"type": "plain_text",
-				"text": "[Optional] A URL to a promotional image for your app.",
-				"emoji": True
-			}
-		}
-	]
+                        "optional": True,
+                        "element": {
+                                "type": "plain_text_input",
+                                "action_id": "plain_text_input-action",
+                                "initial_value": project["img"]
+                        },
+                        "label": {
+                                "type": "plain_text",
+                                "text": "Image",
+                                "emoji": True
+                        },
+                        "hint": {
+                                "type": "plain_text",
+                                "text": "[Optional] A URL to a promotional image for your app.",
+                                "emoji": True
+                        }
+                }
+        ]
     # Is this a new project? If so don't show the selection box
     if project["desc"]:
         editbox = displayEditLoad(id)+displaySpacer()+editbox
@@ -227,27 +230,32 @@ def displayProject(id):
             backers += 1
             currentp += int(project["pledges"][pledge])
     blocks = [{
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": format(project["title"]),
-				"emoji": True
-			}
-		},
+                        "type": "header",
+                        "text": {
+                                "type": "plain_text",
+                                "text": format(project["title"]),
+                                "emoji": True
+                        }
+                },
         {
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "{} ${}/${} | {} backers\n".format(createProgressBar(currentp, project["total"]), currentp, project["total"], backers) + \
+                        "type": "section",
+                        "text": {
+                                "type": "mrkdwn",
+                                "text": "{} ${}/${} | {} backers\n".format(createProgressBar(currentp, project["total"]), currentp, project["total"], backers) + \
                         "{} \n".format(project["desc"]) + \
                         "*Created by*: <@{}> *Last updated by*: <@{}>".format(project["created by"], project["last updated by"])
-			},
-			"accessory": {
-				"type": "image",
-				"image_url": image,
-				"alt_text": "Project image"
-			}
-		}]
+                        },
+                        "accessory": {
+                                "type": "image",
+                                "image_url": image,
+                                "alt_text": "Project image"
+                        }
+                }]
+    
+    if project.get("dgr",False):
+        blocks = blocks + displaySpacer()
+        blocks.append({"type":"context","elements":[{"type":"mrkdwn","text":"Donations to this project are considered gifts to Perth Artifactory Inc and are tax deductible."}]})
+    
     return blocks
 
 def displayApprove(id):
@@ -277,56 +285,56 @@ def displayDonate(id,user=None,home=False):
     if home:
         homeadd = "_home"
     blocks = [
-		{
-			"dispatch_action": True,
+                {
+                        "dispatch_action": True,
             "block_id": id,
-			"type": "input",
-			"element": {
-				"type": "plain_text_input",
-				"action_id": "donateAmount" + homeadd
-			},
-			"label": {
-				"type": "plain_text",
-				"text": "Donate specific amount",
-				"emoji": True
-			}
-		},
-		{
-			"type": "actions",
-			"elements": [
-				{
-					"type": "button",
-					"text": {
-						"type": "plain_text",
-						"text": "Donate 10%",
-						"emoji": True
-					},
-					"value": id,
-					"action_id": "donate10" + homeadd
-				},
-				{
-					"type": "button",
-					"text": {
-						"type": "plain_text",
-						"text": "Donate 20%",
-						"emoji": True
-					},
-					"value": id,
-					"action_id": "donate20" + homeadd
-				},
-				{
-					"type": "button",
-					"text": {
-						"type": "plain_text",
-						"text": "Donate the rest",
-						"emoji": True
-					},
-					"value": id,
-					"action_id": "donateRest" + homeadd
-				}
-			]
-		}
-	]
+                        "type": "input",
+                        "element": {
+                                "type": "plain_text_input",
+                                "action_id": "donateAmount" + homeadd
+                        },
+                        "label": {
+                                "type": "plain_text",
+                                "text": "Donate specific amount",
+                                "emoji": True
+                        }
+                },
+                {
+                        "type": "actions",
+                        "elements": [
+                                {
+                                        "type": "button",
+                                        "text": {
+                                                "type": "plain_text",
+                                                "text": "Donate 10%",
+                                                "emoji": True
+                                        },
+                                        "value": id,
+                                        "action_id": "donate10" + homeadd
+                                },
+                                {
+                                        "type": "button",
+                                        "text": {
+                                                "type": "plain_text",
+                                                "text": "Donate 20%",
+                                                "emoji": True
+                                        },
+                                        "value": id,
+                                        "action_id": "donate20" + homeadd
+                                },
+                                {
+                                        "type": "button",
+                                        "text": {
+                                                "type": "plain_text",
+                                                "text": "Donate the rest",
+                                                "emoji": True
+                                        },
+                                        "value": id,
+                                        "action_id": "donateRest" + homeadd
+                                }
+                        ]
+                }
+        ]
 
     project = getProject(id)
     # This should really only be used in the App Home since it provides personalised results
@@ -339,32 +347,32 @@ def displayDonate(id,user=None,home=False):
             # Prefill their existing donation amount.
             blocks[0]["element"]["initial_value"] = str(project["pledges"][user])
             blocks += [{
-			"type": "context",
-			"elements": [
-				{
-					"type": "plain_text",
-					"text": "Thanks for your ${} donation! You can update your pledge using the buttons above.".format(project["pledges"][user]),
-					"emoji": True
-				}
-			]
-		}]
+                        "type": "context",
+                        "elements": [
+                                {
+                                        "type": "plain_text",
+                                        "text": "Thanks for your ${} donation! You can update your pledge using the buttons above.".format(project["pledges"][user]),
+                                        "emoji": True
+                                }
+                        ]
+                }]
 
     return blocks
 
 def displayEditLoad(id):
     box = [{
-    	"type": "actions",
+        "type": "actions",
         "block_id": "projectDropdown",
-    	"elements": [{
-    			"type": "external_select",
-    			"action_id": "projectSelector",
-    			"placeholder": {
-    				"type": "plain_text",
-    				"text": "Select a project to update"
-    			},
-    			"min_query_length": 0
-    		}
-    	]
+        "elements": [{
+                        "type": "external_select",
+                        "action_id": "projectSelector",
+                        "placeholder": {
+                                "type": "plain_text",
+                                "text": "Select a project to update"
+                        },
+                        "min_query_length": 0
+                }
+        ]
     }]
     if id:
         project = getProject(id)
@@ -377,34 +385,34 @@ def displaySpacer():
 
 def displayPromote(id=False):
     blocks = [
-		{
-			"type": "actions",
-			"block_id": "promote",
-			"elements": [
-				{
-					"type": "conversations_select",
-					"placeholder": {
-						"type": "plain_text",
-						"text": "Select a public channel",
-						"emoji": True
-					},
+                {
+                        "type": "actions",
+                        "block_id": "promote",
+                        "elements": [
+                                {
+                                        "type": "conversations_select",
+                                        "placeholder": {
+                                                "type": "plain_text",
+                                                "text": "Select a public channel",
+                                                "emoji": True
+                                        },
                     "filter": {"include": ["public"]
-					},
-					"action_id": "conversationSelector",
+                                        },
+                                        "action_id": "conversationSelector",
                     "default_to_current_conversation": True
-				},
-				{
-					"type": "external_select",
-					"action_id": "projectPreviewSelector",
-					"placeholder": {
-						"type": "plain_text",
-						"text": "Select a project to update"
-					},
-					"min_query_length": 0
-				},
-			]
-		}
-	]
+                                },
+                                {
+                                        "type": "external_select",
+                                        "action_id": "projectPreviewSelector",
+                                        "placeholder": {
+                                                "type": "plain_text",
+                                                "text": "Select a project to update"
+                                        },
+                                        "min_query_length": 0
+                                },
+                        ]
+                }
+        ]
     if id:
         pass
         blocks = blocks + displaySpacer() + displayProject(id)
@@ -549,112 +557,112 @@ def entryPoints(ack, respond, command, client, body):
 def updateHome(user, client):
     docs = [
             {
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": "How to create a project",
-				"emoji": True
-			}
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.\nOnce your project has been approved by a member of <!subteam^{}> your project will appear in the list above.".format(config["admin_group"])
-			},
-			"accessory": {
-				"type": "button",
-				"text": {
-					"type": "plain_text",
-					"text": "Create a project",
-					"emoji": True
-				},
-				"value": "AppHome",
-				"action_id": "createFromHome"
-			}
-		},
-		{
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": "How to update a project",
-				"emoji": True
-			}
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "You can either update a project using `/pledge update` or by using the button here.\n You can only update projects you've created. Within that we've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
-			},
-			"accessory": {
-				"type": "button",
-				"text": {
-					"type": "plain_text",
-					"text": "Update a project",
-					"emoji": True
-				},
-				"value": "AppHome",
-				"action_id": "updateFromHome"
-			}
-		},
-		{
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": "How to promote a project",
-				"emoji": True
-			}
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "You can either update a project using `/pledge promote` or by using the buttons next to each project listed above.\n\n pledgeBot will post a promotional message in a public channel of your choosing. For channels dedicated to a particular project you could pin the promotional message as an easy way of reminding people that they can donate.\nBeyond the technical functions we suggest actively talking about your project in the most relevant channel. If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to start."
-			},
-			"accessory": {
-				"type": "button",
-				"text": {
-					"type": "plain_text",
-					"text": "Promote a project",
-					"emoji": True
-				},
-				"value": "AppHome",
-				"action_id": "promoteFromHome"
-			}
-		},
-		{
-			"type": "header",
-			"text": {
-				"type": "plain_text",
-				"text": "Further help",
-				"emoji": True
-			}
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively reaching out to a <!subteam^SFH110QD8> committee member will put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150> or raise an issue on <https://github.com/Perth-Artifactory/pledgeBot/issues|GitHub>."
-			}
-		}]
+                        "type": "header",
+                        "text": {
+                                "type": "plain_text",
+                                "text": "How to create a project",
+                                "emoji": True
+                        }
+                },
+                {
+                        "type": "section",
+                        "text": {
+                                "type": "mrkdwn",
+                                "text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead."
+                        },
+                        "accessory": {
+                                "type": "button",
+                                "text": {
+                                        "type": "plain_text",
+                                        "text": "Create a project",
+                                        "emoji": True
+                                },
+                                "value": "AppHome",
+                                "action_id": "createFromHome"
+                        }
+                },
+                {
+                        "type": "header",
+                        "text": {
+                                "type": "plain_text",
+                                "text": "How to update a project",
+                                "emoji": True
+                        }
+                },
+                {
+                        "type": "section",
+                        "text": {
+                                "type": "mrkdwn",
+                                "text": "You can either update a project using `/pledge update` or by using the button here.\n We've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates)."
+                        },
+                        "accessory": {
+                                "type": "button",
+                                "text": {
+                                        "type": "plain_text",
+                                        "text": "Update a project",
+                                        "emoji": True
+                                },
+                                "value": "AppHome",
+                                "action_id": "updateFromHome"
+                        }
+                },
+                {
+                        "type": "header",
+                        "text": {
+                                "type": "plain_text",
+                                "text": "How to promote a project",
+                                "emoji": True
+                        }
+                },
+                {
+                        "type": "section",
+                        "text": {
+                                "type": "mrkdwn",
+                                "text": "You can either update a project using `/pledge promote` or by using the buttons next to each project listed above.\n\n pledgeBot will post a promotional message in a public channel of your choosing. For channels dedicated to a particular project you could pin the promotional message as an easy way of reminding people that they can donate.\nBeyond the technical functions we suggest actively talking about your project in the most relevant channel. If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to start."
+                        },
+                        "accessory": {
+                                "type": "button",
+                                "text": {
+                                        "type": "plain_text",
+                                        "text": "Promote a project",
+                                        "emoji": True
+                                },
+                                "value": "AppHome",
+                                "action_id": "promoteFromHome"
+                        }
+                },
+                {
+                        "type": "header",
+                        "text": {
+                                "type": "plain_text",
+                                "text": "Further help",
+                                "emoji": True
+                        }
+                },
+                {
+                        "type": "section",
+                        "text": {
+                                "type": "mrkdwn",
+                                "text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively reaching out to a <!subteam^SFH110QD8> committee member will put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150> or raise an issue on <https://github.com/Perth-Artifactory/pledgeBot/issues|GitHub>."
+                        }
+                }]
+
+    home_view = {
+            "type": "home",
+            "blocks": [
+                                {
+                                "type": "section",
+                                "text": {
+                                        "type": "mrkdwn",
+                                        "text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
+                                }
+                        }
+            ] + displaySpacer() + displayHomeProjects(user=user) + docs,
+        }
 
     client.views_publish(
         user_id=user,
-        view={
-            # Home tabs must be enabled in your app configuration page under "App Home"
-            # and your app must be subscribed to the app_home_opened event
-            "type": "home",
-            "blocks": [
-                		{
-            			"type": "section",
-            			"text": {
-            				"type": "mrkdwn",
-            				"text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
-            			}
-            		}
-            ] + displaySpacer() + displayHomeProjects(client=client,user=user) + docs,
-        },
+        view=home_view
     )
 
 @app.view("updateData")
@@ -740,7 +748,7 @@ def projectSelected(ack, body, respond, client):
 # Donate buttons with inline update
 
 @app.action("donate10")
-def handle_some_action(ack, body):
+def handle_some_action(ack, body, respond):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["value"]
