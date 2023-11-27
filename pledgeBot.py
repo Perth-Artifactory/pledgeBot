@@ -46,7 +46,7 @@ def getProject(id):
     if id in projects.keys():
         return projects[id]
     else:
-        return {"title":"Your new project","desc":"","img":None,"total":0}
+        return {"title":"Your new project","desc":"","img":None,"total":0,"approved":False}
 
 def validateId(id):
     allowed = set(string.ascii_letters + string.digits + '_' + '-')
@@ -70,17 +70,27 @@ def pledge(id, amount, user, percentage=False):
     writeProject(id,project,user=False)
     return displayProject(id)+displaySpacer()+displayDonate(id)
 
-def projectOptions():
+def projectOptions(restricted = False):
     projects = loadProjects()
     options = []
     for project in projects:
-        options.append({
-                      "text": {
-                        "type": "plain_text",
-                        "text": projects[project]["title"]
-                      },
-                      "value": project
-                    })
+        if restricted:
+            if projects[project]["created by"] == restricted:
+                options.append({
+                              "text": {
+                                "type": "plain_text",
+                                "text": projects[project]["title"]
+                              },
+                              "value": project
+                            })
+        else:
+            options.append({
+                          "text": {
+                            "type": "plain_text",
+                            "text": projects[project]["title"]
+                          },
+                          "value": project
+                        })
     return options
 
 def slackIdShuffle(field,r=False):
@@ -98,6 +108,16 @@ def checkBadCurrency(s):
     if int(s) < 1:
         return "Donation pledges must be a positive number."
 
+    return False
+
+def auth(client,user):
+    r = app.client.usergroups_list(include_users=True)
+    groups = r.data["usergroups"]
+    for group in groups:
+        if group["id"] == config["admin_group"]:
+            authUsers = group['users']
+            if user in authUsers:
+                return True
     return False
 
 #####################
@@ -237,6 +257,28 @@ def displayProject(id):
         blocks.append({"type":"context","elements":[{"type":"mrkdwn","text":"Donations to this project are considered gifts to Perth Artifactory Inc and are tax deductible."}]})
     
     return blocks
+
+def displayApprove(id):
+    blocks = [
+	{
+		"type": "actions",
+		"elements": [
+			{
+				"type": "button",
+				"text": {
+					"type": "plain_text",
+					"text": "Approve project",
+					"emoji": True
+				},
+				"value": id,
+				"action_id": "approve"
+			}
+		]
+	}]
+    return blocks
+
+
+
 
 def displayDonate(id,user=None,home=False):
     homeadd = ""
@@ -407,14 +449,31 @@ def createProgressBar(current, total, segments=7):
 
     return final_s
 
-def displayHomeProjects(user):
+def displayHomeProjects(user,client):
     projects = loadProjects()
     blocks = []
     for project in projects:
-        blocks += displayProject(project)
-        blocks += displayDonate(project,user=user,home=True)
-        #blocks += displayPromoteButton()
-        blocks += displaySpacer()
+        if projects[project]["approved"]:
+            blocks += displayProject(project)
+            blocks += displayDonate(project,user=user,home=True)
+            blocks += displaySpacer()
+    if auth(user=user, client=client):
+        blocks += [{"type": "context","elements": [{"type": "plain_text",
+					"text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. ",
+					"emoji": True}]}]
+        for project in projects:
+            if not projects[project]["approved"]:
+                blocks += displayProject(project)
+                blocks += displayApprove(project)
+                blocks += displaySpacer()
+    else:
+        for project in projects:
+            if not projects[project]["approved"] and projects[project]["created by"] == user:
+                blocks += displayProject(project)
+                blocks += [{"type": "context","elements": [{"type": "plain_text",
+        					"text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. Ping a committee member when your project is ready for approval".format(config["admin_group"]),
+        					"emoji": True}]}]
+                blocks += displaySpacer()
     return blocks
 
 
@@ -847,12 +906,24 @@ def handle_some_action(ack, body, client):
             "blocks": constructEdit(id=id)}
     )
 
+@app.action("approve")
+def handle_some_action(ack, body, client):
+    ack()
+    id = body["actions"][0]["value"]
+    user = body["user"]["id"]
+    project = getProject(id)
+    project["approved"] = True
+    writeProject(id,project,user)
+    updateHome(user=user, client=client)
 
 ### info ###
 
 @app.options("projectSelector")
-def sendOptions(ack):
-    ack(options=projectOptions())
+def sendOptions(ack, body, client):
+    if auth(user=body["user"]["id"], client=client):
+        ack(options=projectOptions())
+    else:
+        ack(options=projectOptions(restricted=body["user"]["id"]))
 
 @app.options("projectPreviewSelector")
 def handle_some_options(ack):
