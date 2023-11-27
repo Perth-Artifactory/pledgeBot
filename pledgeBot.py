@@ -120,6 +120,18 @@ def auth(client,user):
                 return True
     return False
 
+def check_if_funded(project=None,id=None):
+    if id:
+        project = getProject(id)
+    
+    currentp = 0
+    if "pledges" in project.keys():
+        for pledge in project["pledges"]:
+            currentp += int(project["pledges"][pledge])
+    if currentp >= project["total"]:
+        return True
+    return False
+
 #####################
 # Display functions #
 #####################
@@ -284,57 +296,74 @@ def displayDonate(id,user=None,home=False):
     homeadd = ""
     if home:
         homeadd = "_home"
-    blocks = [
+        
+    # Check if the project has met its goal
+    if check_if_funded(id=id):
+        blocks = [
                 {
-                        "dispatch_action": True,
-            "block_id": id,
-                        "type": "input",
-                        "element": {
-                                "type": "plain_text_input",
-                                "action_id": "donateAmount" + homeadd
-                        },
-                        "label": {
-                                "type": "plain_text",
-                                "text": "Donate specific amount",
-                                "emoji": True
-                        }
-                },
-                {
-                        "type": "actions",
+                        "type": "context",
                         "elements": [
                                 {
-                                        "type": "button",
-                                        "text": {
-                                                "type": "plain_text",
-                                                "text": "Donate 10%",
-                                                "emoji": True
-                                        },
-                                        "value": id,
-                                        "action_id": "donate10" + homeadd
-                                },
-                                {
-                                        "type": "button",
-                                        "text": {
-                                                "type": "plain_text",
-                                                "text": "Donate 20%",
-                                                "emoji": True
-                                        },
-                                        "value": id,
-                                        "action_id": "donate20" + homeadd
-                                },
-                                {
-                                        "type": "button",
-                                        "text": {
-                                                "type": "plain_text",
-                                                "text": "Donate the rest",
-                                                "emoji": True
-                                        },
-                                        "value": id,
-                                        "action_id": "donateRest" + homeadd
+                                        "type": "plain_text",
+                                        "text": "This project has met it's funding goal.",
+                                        "emoji": True
                                 }
                         ]
                 }
         ]
+    else:
+        
+        blocks = [
+                    {
+                            "dispatch_action": True,
+                "block_id": id,
+                            "type": "input",
+                            "element": {
+                                    "type": "plain_text_input",
+                                    "action_id": "donateAmount" + homeadd
+                            },
+                            "label": {
+                                    "type": "plain_text",
+                                    "text": "Donate specific amount",
+                                    "emoji": True
+                            }
+                    },
+                    {
+                            "type": "actions",
+                            "elements": [
+                                    {
+                                            "type": "button",
+                                            "text": {
+                                                    "type": "plain_text",
+                                                    "text": "Donate 10%",
+                                                    "emoji": True
+                                            },
+                                            "value": id,
+                                            "action_id": "donate10" + homeadd
+                                    },
+                                    {
+                                            "type": "button",
+                                            "text": {
+                                                    "type": "plain_text",
+                                                    "text": "Donate 20%",
+                                                    "emoji": True
+                                            },
+                                            "value": id,
+                                            "action_id": "donate20" + homeadd
+                                    },
+                                    {
+                                            "type": "button",
+                                            "text": {
+                                                    "type": "plain_text",
+                                                    "text": "Donate the rest",
+                                                    "emoji": True
+                                            },
+                                            "value": id,
+                                            "action_id": "donateRest" + homeadd
+                                    }
+                            ]
+                    }
+            ]
 
     project = getProject(id)
     # This should really only be used in the App Home since it provides personalised results
@@ -344,18 +373,21 @@ def displayDonate(id,user=None,home=False):
 
         # Check if the user has already donated to this project
         if user in project["pledges"]:
-            # Prefill their existing donation amount.
-            blocks[0]["element"]["initial_value"] = str(project["pledges"][user])
-            blocks += [{
-                        "type": "context",
-                        "elements": [
-                                {
-                                        "type": "plain_text",
-                                        "text": "Thanks for your ${} donation! You can update your pledge using the buttons above.".format(project["pledges"][user]),
-                                        "emoji": True
-                                }
-                        ]
-                }]
+            if check_if_funded(id=id):
+                blocks[0]["elements"][0]["text"] += f' Thank you for your ${project["pledges"][user]} donation!'
+            else:
+                # Prefill their existing donation amount.
+                blocks[0]["element"]["initial_value"] = str(project["pledges"][user])
+                blocks += [{
+                            "type": "context",
+                            "elements": [
+                                    {
+                                            "type": "plain_text",
+                                            "text": "Thanks for your ${} donation! You can update your pledge using the buttons above.".format(project["pledges"][user]),
+                                            "emoji": True
+                                    }
+                            ]
+                    }]
 
     return blocks
 
