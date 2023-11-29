@@ -1,12 +1,10 @@
 #!/usr/bin/python3
 
 import json
-import string
-import random
-import requests
-from pprint import pprint
 from datetime import datetime, timedelta
+from pprint import pprint
 
+import requests
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
