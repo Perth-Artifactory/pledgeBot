@@ -163,7 +163,9 @@ def projectOptions(restricted=False, approved=False):
                 continue
 
         if restricted:
-            if projects[project]["created by"] == restricted and not projects[project].get("approved", False):
+            if projects[project]["created by"] == restricted and not projects[
+                project
+            ].get("approved", False):
                 options.append(
                     {
                         "text": {
