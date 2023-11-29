@@ -617,6 +617,13 @@ def displayHomeProjects(user, client):
     projects = loadProjects()
     
     blocks = displayHeader("Projects seeking donations")
+    blocks += [{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "Everyone has different ideas about what the space needs. These are some of the projects currently seeking donations."
+			}
+		}]
     for project in projects:
         if projects[project].get("approved", False) and not check_if_funded(id=project):
             blocks += displayProject(project)
@@ -640,7 +647,7 @@ def displayHomeProjects(user, client):
         not_yet_approved = []
         for project in projects:
             if (
-                not projects[project]["approved"]
+                not projects[project].get("approved", False)
                 and projects[project]["created by"] == user
             ):
                 not_yet_approved.append(project)
@@ -837,17 +844,7 @@ def updateHome(user, client):
 
     home_view = {
         "type": "home",
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations.",
-                },
-            }
-        ]
-        + displaySpacer()
-        + displayHomeProjects(client=client, user=user)
+        "blocks": displayHomeProjects(client=client, user=user)
         + docs,
     }
 
