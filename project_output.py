@@ -73,10 +73,22 @@ def send_invoices(p):
         # Send a message to the donor to let them know an invoice has been created
         app.client.chat_postMessage(
             channel=channel_id,
-            text=f'Hi <@{users[pledge][1]}>,\n\nThe funding goal for {p["title"]} has been met. I\'ve created an invoice for ${amount} which you can find <https://{domain}.tidyhq.com/public/invoices/{invoice["id"]}|here>.{message_suffix}'
+            text=f'The funding goal for {p["title"]} has been met. I\'ve created an invoice for ${amount} which you can find <https://{domain}.tidyhq.com/public/invoices/{invoice["id"]}|here>.{message_suffix}'
         )
         
         print(f'Invoice notification sent to {users[pledge][0]}')
+    
+    # Open a slack conversation with the project creator and get the channel ID
+    r = app.client.conversations_open(users=p["created by"])
+    channel_id = r["channel"]["id"]
+        
+    # Send a message to the project creator to let them know the invoices have been created
+    app.client.chat_postMessage(
+        channel=channel_id,
+        text=f'The funding goal for {p["title"]} has been met and invoices have been sent out. Please contact the Treasurer for the next steps.'
+    )    
+    
+    print(f'Invoice notification sent to {users[p["created by"]][0]} as project creator')
 
 
 # Initialise slack
