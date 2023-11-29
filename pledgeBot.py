@@ -264,6 +264,16 @@ def displayApprove(id):
 				},
 				"value": id,
 				"action_id": "approve"
+			},
+			{
+				"type": "button",
+				"text": {
+					"type": "plain_text",
+					"text": "Approve as DGR qualified",
+					"emoji": True
+				},
+				"value": id,
+				"action_id": "approve_as_dgr"
 			}
 		]
 	}]
@@ -445,7 +455,7 @@ def displayHomeProjects(user,client):
     projects = loadProjects()
     blocks = []
     for project in projects:
-        if projects[project]["approved"]:
+        if projects[project].get("approved",False):
             blocks += displayProject(project)
             blocks += displayDonate(project,user=user,home=True)
             blocks += displaySpacer()
@@ -454,7 +464,7 @@ def displayHomeProjects(user,client):
 					"text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. ",
 					"emoji": True}]}]
         for project in projects:
-            if not projects[project]["approved"]:
+            if not projects[project].get("approved",False):
                 blocks += displayProject(project)
                 blocks += displayApprove(project)
                 blocks += displaySpacer()
@@ -740,7 +750,7 @@ def projectSelected(ack, body, respond, client):
 # Donate buttons with inline update
 
 @app.action("donate10")
-def handle_some_action(ack, body):
+def handle_some_action(ack, body, respond):
     ack()
     user = body["user"]["id"]
     id = body["actions"][0]["value"]
@@ -905,6 +915,17 @@ def handle_some_action(ack, body, client):
     user = body["user"]["id"]
     project = getProject(id)
     project["approved"] = True
+    writeProject(id,project,user)
+    updateHome(user=user, client=client)
+    
+@app.action("approve_as_dgr")
+def handle_some_action(ack, body, client):
+    ack()
+    id = body["actions"][0]["value"]
+    user = body["user"]["id"]
+    project = getProject(id)
+    project["approved"] = True
+    project["dgr"] = True
     writeProject(id,project,user)
     updateHome(user=user, client=client)
 
