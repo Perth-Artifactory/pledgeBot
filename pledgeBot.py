@@ -5,6 +5,7 @@ import string
 import random
 from pprint import pprint
 import requests
+import time
 
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -29,7 +30,9 @@ def writeProject(id, data, user):
     projects = loadProjects()
     if id not in projects.keys():
         data["created by"] = user
+        data["created at"] = int(time.time())
         data["last updated by"] = user
+        data["last updated at"] = int(time.time())
         # Projects should default to DGR False
         data["dgr"] = False
         projects[id] = data
@@ -45,6 +48,7 @@ def writeProject(id, data, user):
     else:
         if user:
             data["last updated by"] = user
+            data["last updated at"] = int(time.time())
 
             # Send a notice to the admin channel and add further details as a thread
             reply = app.client.chat_postMessage(
@@ -135,6 +139,10 @@ def pledge(id, amount, user, percentage=False):
             channel=config["admin_channel"],
             text=f'"{project["title"]}" has met its funding goal! For now the next step is for a backend admin to trigger invoice generation.',
         )
+        
+        # Mark when the project was funded
+        project["funded at"] = int(time.time())
+        writeProject(id, project, user=False)
 
     # Send back an updated project block
 
@@ -1138,6 +1146,7 @@ def handle_some_action(ack, body, client):
     user = body["user"]["id"]
     project = getProject(id)
     project["approved"] = True
+    project["approved_at"] = int(time.time())
     writeProject(id, project, user)
     
     # Open a slack conversation with the creator and get the channel ID
@@ -1179,6 +1188,7 @@ def handle_some_action(ack, body, client):
     user = body["user"]["id"]
     project = getProject(id)
     project["approved"] = True
+    project["approved_at"] = int(time.time())
     project["dgr"] = True
     writeProject(id, project, user)
     
