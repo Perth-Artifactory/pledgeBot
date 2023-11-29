@@ -218,6 +218,16 @@ def check_if_funded(project=None, id=None):
         return True
     return False
 
+def check_if_old(project=None, id=None):
+    """Returns True if the project was funded more than age_out_threshold days ago"""
+    if id:
+        project = getProject(id)
+
+    if "funded at" in project.keys():
+        if int(time.time()) - project["funded at"] > 86400 * config["age_out_threshold"]:
+            return True
+        return False
+    return True
 
 #####################
 # Display functions #
@@ -601,7 +611,7 @@ def displayHomeProjects(user, client):
     projects = loadProjects()
     blocks = []
     for project in projects:
-        if projects[project].get("approved", False):
+        if projects[project].get("approved", False) and not check_if_old(project=project):
             blocks += displayProject(project)
             blocks += displayDonate(project, user=user, home=True)
             blocks += displaySpacer()
