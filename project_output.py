@@ -64,6 +64,7 @@ def send_invoices(p):
             },
         )
         print(r.content)
+        invoice_id = r.json()["id"]
         
         # Open a slack conversation with the donor and get the channel ID
         r = app.client.conversations_open(users=pledge)
@@ -72,7 +73,7 @@ def send_invoices(p):
         # Send a message to the donor to let them know an invoice has been created
         app.client.chat_postMessage(
             channel=channel_id,
-            text=f'Hi <@{users[pledge][0]}>,\n\nThe funding goal for {p["title"]} has been met. I\'ve created an invoice for ${amount} which you can find in your inbox.{message_suffix}'
+            text=f'Hi <@{users[pledge][0]}>,\n\nThe funding goal for {p["title"]} has been met. I\'ve created an invoice for ${amount} which you can find <https://{domain}.tidyhq.com/public/invoices/{invoice_id}|here>.{message_suffix}'
         )
         
         print(f'Invoice notification sent to {users[pledge][0]}')
@@ -83,8 +84,11 @@ def send_invoices(p):
 app = App(token=config["SLACK_BOT_TOKEN"])
 
 # Populate users from file
-with open("tidyslack.json", "r") as f:
-    users = json.load(f)
+try: 
+    with open("tidyslack.json", "r") as f:
+        users = json.load(f)
+except FileNotFoundError:
+    users = {}
 
 print("Pulling TidyHQ contacts...")
 
@@ -114,6 +118,15 @@ with open("tidyslack.json", "w") as f:
     json.dump(users, f, indent=4, sort_keys=True)
 
 projects = loadProjects()
+
+# Get org name for URLs
+print("Pulling TidyHQ organisation prefix...")
+r = requests.get(
+    "https://api.tidyhq.com/v1/organization",
+    params={"access_token": config["tidyhq_token"]},
+)
+domain = r.json()["domain_prefix"]
+print(f'Domain is {domain}.tidyhq.com')
 
 for project in projects:
     p = projects[project]
