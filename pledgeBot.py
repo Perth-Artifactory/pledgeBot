@@ -163,7 +163,7 @@ def projectOptions(restricted=False, approved=False):
                 continue
 
         if restricted:
-            if projects[project]["created by"] == restricted:
+            if projects[project]["created by"] == restricted and not projects[project].get("approved", False):
                 options.append(
                     {
                         "text": {
@@ -820,7 +820,7 @@ def updateHome(user, client):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.",
+                "text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.\n\nOnce your project has been created it will need to be approved before people can donate to it. You can trigger the approval process by pressing the request button attached to your project.",
             },
             "accessory": {
                 "type": "button",
@@ -845,7 +845,7 @@ def updateHome(user, client):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "You can either update a project using `/pledge update` or by using the button here.\n We've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates).",
+                "text": "You can either update a project using `/pledge update` or by using the button here.\n Once your project has been approved you won't be able to edit it. If you need to make changes after this point you'll need to ask a committee member to perform them on your behalf.",
             },
             "accessory": {
                 "type": "button",
@@ -870,7 +870,7 @@ def updateHome(user, client):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "You can either update a project using `/pledge promote` or by using the buttons next to each project listed above.\n\n pledgeBot will post a promotional message in a public channel of your choosing. For channels dedicated to a particular project you could pin the promotional message as an easy way of reminding people that they can donate.\nBeyond the technical functions we suggest actively talking about your project in the most relevant channel. If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to start.",
+                "text": "You can either update a project using `/pledge promote` or by using the buttons next to each project listed above.\n\n pledgeBot will post a promotional message in a public channel of your choosing. For channels dedicated to a particular project you could pin the promotional message as an easy way of reminding people that they can donate.\nBeyond the technical functions we suggest actively talking about your project in the most relevant channel. eg, If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to start.",
             },
             "accessory": {
                 "type": "button",
@@ -891,7 +891,7 @@ def updateHome(user, client):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively reaching out to a <!subteam^SFH110QD8> committee member will put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150> or raise an issue on <https://github.com/Perth-Artifactory/pledgeBot/issues|GitHub>.",
+                "text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively if you reach out to a committee member they'll put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150> or raise an issue on <https://github.com/Perth-Artifactory/pledgeBot/issues|GitHub>.",
             },
         },
     ]
@@ -1425,7 +1425,7 @@ def sendOptions(ack, body, client):
     if auth(user=body["user"]["id"], client=client):
         ack(options=projectOptions())
     else:
-        ack(options=projectOptions(restricted=body["user"]["id"]))
+        ack(options=projectOptions(restricted=body["user"]["id"], approved=False))
 
 
 @app.options("projectPreviewSelector")
