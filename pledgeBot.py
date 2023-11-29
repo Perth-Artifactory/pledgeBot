@@ -6,6 +6,7 @@ import string
 import time
 from pprint import pprint  # type: ignore # This has been left in for debugging purposes
 from typing import Any
+import utils.project_output
 
 import requests
 from slack_bolt import App
@@ -45,7 +46,7 @@ def writeProject(id: str, data: dict[str,Any], user: str|bool):
         # Notify the admin channel
         app.client.chat_postMessage( # type: ignore
             channel=config["admin_channel"],
-            text=f'"{data["title"]}" has been created by <@{user}>. It will need to be approved before it will show up on the full list of projects or to be marked as DGR eligible. This can be completed by any member of <@{config["admin_group"]}> by clicking on my name.',
+            text=f'"{data["title"]}" has been created by <@{user}>. It will need to be approved before it will show up on the full list of projects or to be marked as DGR eligible. This can be completed by any member of <!subteam^{config["admin_group"]}> by clicking on my name or waiting for the creator to request approval themselves.',
         )
 
     else:
@@ -140,7 +141,26 @@ def pledge(id: str, amount: int|str, user: str, percentage: bool=False) -> list[
         # Notify the admin channel
         app.client.chat_postMessage( # type: ignore
             channel=config["admin_channel"],
-            text=f'"{project["title"]}" has met its funding goal! For now the next step is for a backend admin to trigger invoice generation.',
+            text=f'"{project["title"]}" has met its funding goal!',
+            blocks=[
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f'"{project["title"]}" has met its funding goal!',
+                },
+                "accessory": {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Send invoices",
+                        "emoji": True,
+                    },
+                    "value": id,
+                    "action_id": "sendInvoices",
+                },
+            }
+        ],
         )
 
         # Mark when the project was funded
@@ -746,7 +766,7 @@ app = App(token=config["SLACK_BOT_TOKEN"])
 
 
 @app.command("/pledge") # type: ignore
-def entryPoints(ack, command: dict[str,Any], client, body: dict{str,Any}) -> None: # type: ignore
+def entryPoints(ack, command: dict[str,Any], client, body: dict[str,Any]) -> None: # type: ignore
     ack()
     # Did the user provide a command?
     if command["text"] != "":
@@ -1308,8 +1328,7 @@ def approve(ack, body: dict[str,Any], client: WebClient) -> None: # type: ignore
         )
 
     updateHome(user=user, client=client)
-
-
+    
 @app.action("approve_as_dgr") # type: ignore
 def approve_as_dgr(ack, body: dict[str,Any], client: WebClient) -> None: # type: ignore
     ack()
@@ -1328,13 +1347,13 @@ def approve_as_dgr(ack, body: dict[str,Any], client: WebClient) -> None: # type:
     # Notify the creator
     app.client.chat_postMessage( # type: ignore
         channel=channel_id,
-        text=f'Your project "{project["title"]}" has been approved! You can now promote it to a channel of your choice. Additionally, we have marked this project as qualified for <{config["tax_info"]}|tax deductible donations>.',
+        text=f'Your project "{project["title"]}" has been approved! You can now promote it to a channel of your choice. Additionally, we have marked this project as qualifying for <{config["tax_info"]}|tax deductible donations>.',
         blocks=[
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f'Your project "{project["title"]}" has been approved! You can now promote it to a channel of your choice.\nAdditionally, we have marked this project as qualified for <{config["tax_info"]}|tax deductible donations>.',
+                    "text": f'Your project "{project["title"]}" has been approved! You can now promote it to a channel of your choice.\nAdditionally, we have marked this project as qualifying for <{config["tax_info"]}|tax deductible donations>.',
                 },
                 "accessory": {
                     "type": "button",
@@ -1386,6 +1405,81 @@ def approve_as_dgr(ack, body: dict[str,Any], client: WebClient) -> None: # type:
 
     updateHome(user=user, client=client)
 
+@app.action("sendInvoices") # type: ignore
+def invoice(ack, body: dict[str,Any], client: WebClient) -> None: # type: ignore
+    ack()
+    id: str = body["actions"][0]["value"]
+    user: str = body["user"]["id"]
+    project: dict[str, Any] = getProject(id)
+
+    # Get reply method
+    # Coming from a modal, typically home
+    if body["container"]["type"] == "view":
+        # Send a notification to the admin channel
+        r = app.client.chat_postMessage( # type: ignore
+            channel=config["admin_channel"],
+            text=f'Invoicing for "{project["title"]}" has been triggered by <@{user}>.',
+        )
+        
+        reply = r["ts"] # type: ignore
+        blocks = []
+        button = {}
+
+    # Coming from a message, which means we can just update that message
+    elif body["container"]["type"] == "message":
+        reply = body["container"]["message_ts"]
+        
+        # Store the generate invoice button in case we need to re-add it
+        button = body["message"]["blocks"][-1]
+        # Take out the button
+        blocks: list[dict[str,Any]] = body["message"]["blocks"][:-1]
+        blocks += [
+            {
+                "type": "context",
+                "elements": [
+                    {"type": "mrkdwn", "text": f'Invoicing has been triggered by <@{user}>.'}
+                ],
+            }
+        ]
+        
+        app.client.chat_update( # type: ignore
+            channel=body["container"]["channel_id"],
+            ts=body["container"]["message_ts"],
+            blocks=blocks,
+            text=f"Invoicing started by <@{user}>",
+            as_user=True,
+        )
+        
+    else:
+        raise Exception("Could not get reply method for invoicing")
+
+    # Initiate the invoice process
+    outcome: str = utils.project_output.send_invoices_lib(id)
+    sent: bool = True if "Error:" not in outcome[:6] else False
+
+    # If we came from a message we can add the trigger button back in if the invoicing failed
+    if body["container"]["type"] == "message":
+        
+        # If we weren't successful, add the button back at the bottom
+        if not sent:
+            blocks += [button]
+            
+            app.client.chat_update( # type: ignore
+                channel=body["container"]["channel_id"],
+                ts=body["container"]["message_ts"],
+                blocks=blocks,
+                text=f"Invoicing started by <@{user}>",
+                as_user=True,
+            )
+    
+    else:
+        raise Exception("Unknown container type")
+    
+    # Add invoicing details as reply to the notification
+    app.client.chat_postMessage( # type: ignore
+        channel=config["admin_channel"],
+        thread_ts=reply, # type: ignore
+        text=outcome)
 
 @app.action("requestProjectApproval") # type: ignore
 def requestProjectApproval(ack, body: dict[str,Any], client: WebClient) -> None: # type: ignore
