@@ -189,16 +189,15 @@ def slackIdShuffle(field, r=False):
     # This function is used when we want to disable Slack's input preservation.
     if r:
         return field.split("SHUFFLE")[0]
-    return "{}SHUFFLE{}".format(
-        field, "".join(random.choices(string.ascii_letters + string.digits, k=16))
-    )
+    random_string = "".join(random.choices(string.ascii_letters + string.digits, k=16))
+    return f"{field}SHUFFLE{random_string}"
 
 
 def checkBadCurrency(s):
     try:
         s = int(s)
     except ValueError:
-        return "Donation pledges must be a number. `{}` wasn't recognised.".format(s)
+        return f"Donation pledges must be a number. `{s}` wasn't recognised."
 
     if int(s) < 1:
         return "Donation pledges must be a positive number."
@@ -353,16 +352,9 @@ def displayProject(id):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "{} ${}/${} | {} backers\n".format(
-                    createProgressBar(currentp, project["total"]),
-                    currentp,
-                    project["total"],
-                    backers,
-                )
-                + "{} \n".format(project["desc"])
-                + "*Created by*: <@{}> *Last updated by*: <@{}>".format(
-                    project["created by"], project["last updated by"]
-                ),
+                "text": f'{createProgressBar(currentp, project["total"])} ${currentp}/${project["total"]} | {backers} backers\n'
+                + f'{project["desc"]} \n'
+                + f'*Created by*: <@{project["created by"]}> *Last updated by*: <@{project["last updated by"]}>',
             },
             "accessory": {
                 "type": "image",
@@ -523,9 +515,7 @@ def displayDonate(id, user=None, home=False):
                         "elements": [
                             {
                                 "type": "plain_text",
-                                "text": "Thanks for your ${} donation! You can update your pledge using the buttons above.".format(
-                                    project["pledges"][user]
-                                ),
+                                "text": f'Thanks for your ${ project["pledges"][user]} donation! You can update your pledge using the buttons above.',
                                 "emoji": True,
                             }
                         ],
@@ -626,16 +616,16 @@ def createProgressBar(current, total, segments=7):
     final_s = ""
 
     # Add the starting cap
-    final_s += ":pb-{}-a:".format(s[0])
+    final_s += f":pb-{s[0]}-a:"
     s = s[1:]
 
     # Fill the middle
     while len(s) > 1:
-        final_s += ":pb-{}:".format(s[:4])
+        final_s += f":pb-{s[:4]}:"
         s = s[4:]
 
     # Add the ending cap
-    final_s += ":pb-{}-z:".format(s[0])
+    final_s += f":pb-{s[0]}-z:"
 
     return final_s
 
@@ -971,12 +961,12 @@ def handle_view_events(ack, body):
     # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
     app.client.chat_postMessage(
         channel=channel,
-        text="<@{}> has promoted a project, check it out!".format(body["user"]["id"]),
+        text=f'<@{body["user"]["id"]}> has promoted a project, check it out!',
     )
     app.client.chat_postMessage(
         channel=channel,
         blocks=displayProject(id) + displaySpacer() + displayDonate(id),
-        text="Check out our fundraiser for: {}".format(title),
+        text=f"Check out our fundraiser for: {title}",
     )
 
 

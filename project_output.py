@@ -28,7 +28,7 @@ def loadProjects():
 def lookup(id):
     if id not in users.keys():
         r = app.client.users_info(user=id)
-        tidy = input("TidyHQ ID for {}? ".format(r["user"]["real_name"]))
+        tidy = input(f'TidyHQ ID for {r["user"]["real_name"]}? ')
         users[id] = (r["user"]["real_name"], r["user"]["name"], tidy)
         with open("tidyslack.json", "w") as f:
             json.dump(users, f, indent=4, sort_keys=True)
@@ -38,9 +38,7 @@ def lookup(id):
 def send_invoices(p):
     if p.get("dgr", False):
         title_prefix = "Gift/Donation for: "
-        message_suffix = (
-            f'\nAs a reminder your donation to this project is <{config["tax_info"]}|tax deductible>.'
-        )
+        message_suffix = f'\nAs a reminder your donation to this project is <{config["tax_info"]}|tax deductible>.'
         admin_suffix = f'\nThese invoices have been marked as <{config["tax_info"]}|tax deductible>.'
         category = config["tidyhq_dgr_category"]
     else:
@@ -130,10 +128,12 @@ r = requests.get(
     params={"access_token": config["tidyhq_token"]},
 )
 
-print("Received {} contacts".format(len(r.json())))
+contacts = r.json()
+
+print(f"Received {len(contacts)} contacts")
 
 print("Pulling data for Slack users not already cached...")
-for contact in r.json():
+for contact in contacts:
     for field in contact["custom_fields"]:
         if (
             field["id"] == config["tidyhq_slack_id_field"]
@@ -166,9 +166,7 @@ print(f"Domain is {domain}.tidyhq.com")
 for project in projects:
     p = projects[project]
     print(
-        "{} - created by {} (@{})".format(
-            p["title"], lookup(p["created by"])[0], lookup(p["created by"])[1]
-        )
+        f'{p["title"]} - created by {lookup(p["created by"])[0]} (@{lookup(p["created by"])[1]})'
     )
 
     if "pledges" not in p.keys():
@@ -177,9 +175,7 @@ for project in projects:
 
     for pledge in p["pledges"]:
         print(
-            "${} - from {} (@{})".format(
-                p["pledges"][pledge], lookup(pledge)[0], lookup(pledge)[1]
-            )
+            f'${p["pledges"][pledge]} - from {lookup(pledge)[0]} (@{lookup(pledge)[1]})'
         )
     print("\n")
     i = input("Invoice? [y/N]")
