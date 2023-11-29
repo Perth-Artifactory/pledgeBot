@@ -28,7 +28,6 @@ def loadProjects():
 def writeProject(id, data, user):
     projects = loadProjects()
     if id not in projects.keys():
-        # TODO show old data somewhere in slack
         data["created by"] = user
         data["last updated by"] = user
         # Projects should default to DGR False
@@ -36,9 +35,46 @@ def writeProject(id, data, user):
         projects[id] = data
         with open("projects.json", "w") as f:
             json.dump(projects, f, indent=4, sort_keys=True)
+            
+        # Notify the admin channel
+        app.client.chat_postMessage(
+            channel=config["admin_channel"],
+            text=f'"{data["title"]}" has been created by <@{user}>. It will need to be approved before it will show up on the full list of projects or to be marked as DGR eligible. This can be completed by any member of <@{config["admin_group"]}> by clicking on my name.',
+        )
+        
     else:
         if user:
             data["last updated by"] = user
+
+            # Send a notice to the admin channel and add further details as a thread
+            reply = app.client.chat_postMessage(
+                channel=config["admin_channel"],
+                text=f'"{data["title"]}" has been updated by <@{user}>.',
+            )
+            
+            app.client.chat_postMessage(
+                channel=config["admin_channel"],
+                thread_ts=reply["ts"],
+                text=f'Old:\n```{json.dumps(loadProjects()[id], indent=4, sort_keys=True)}```',
+            )
+            
+            app.client.chat_postMessage(
+                channel=config["admin_channel"],
+                thread_ts=reply["ts"],
+                text=f'New:\n```{json.dumps(data, indent=4, sort_keys=True)}```',
+            )
+
+            # Send a notice to the project creator if they're not the one updating it
+            if data["created by"] != user:
+                # Open a slack conversation with the creator and get the channel ID
+                r = app.client.conversations_open(users=data["created by"])
+                channel_id = r["channel"]["id"]
+                
+                # Notify the creator
+                app.client.chat_postMessage(
+                    channel=channel_id,
+                    text=f'A project you created ({data["title"]}) has been updated by <@{user}>.',
+                )
 
         projects[id] = data
         with open("projects.json", "w") as f:
@@ -842,9 +878,13 @@ def updateData(ack, body, client):
 @app.view("promoteProject")
 def handle_view_events(ack, body):
     ack()
-    id = body["view"]["state"]["values"]["promote"]["projectPreviewSelector"][
-        "selected_option"
-    ]["value"]
+    try:
+        id = body["view"]["state"]["values"]["promote"]["projectPreviewSelector"][
+            "selected_option"
+        ]["value"]
+    except TypeError:
+        id = body["view"]["private_metadata"]
+    
     channel = body["view"]["state"]["values"]["promote"]["conversationSelector"][
         "selected_conversation"
     ]
@@ -1010,6 +1050,27 @@ def handle_some_action(ack, body, respond, client):
         },
     )
 
+@app.action("promoteSpecificProject_entry")
+def handle_some_action(ack, body, client):
+    ack()
+    project_id = body["actions"][0]["value"]
+    client.views_open(
+        # Pass a valid trigger_id within 3 seconds of receiving it
+        trigger_id=body["trigger_id"],
+        # View payload
+        view={
+            "type": "modal",
+            # View identifier
+            "callback_id": "promoteProject",
+            "title": {"type": "plain_text", "text": "Promote a pledge"},
+            "submit": {"type": "plain_text", "text": "Promote!"},
+            "blocks": displayPromote(id=project_id),
+            "private_metadata": project_id,
+        },
+    )
+
+
+
 
 @app.action("promoteFromHome")
 def handle_some_action(ack, body, client):
@@ -1078,6 +1139,36 @@ def handle_some_action(ack, body, client):
     project = getProject(id)
     project["approved"] = True
     writeProject(id, project, user)
+    
+    # Open a slack conversation with the creator and get the channel ID
+    r = app.client.conversations_open(users=project["created by"])
+    channel_id = r["channel"]["id"]
+    
+    # Notify the creator
+    app.client.chat_postMessage(
+        channel=channel_id,
+        text=f'Your project "{project["title"]}" has been approved! You can now promote it to a channel of your choice.',
+        blocks=[
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f'Your project "{project["title"]}" has been approved! You can now promote it to a channel of your choice.',
+                },
+                "accessory": {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Promote",
+                        "emoji": True,
+                    },
+                    "value": id,
+                    "action_id": "promoteSpecificProject_entry",
+                },
+            }
+        ],
+    )
+    
     updateHome(user=user, client=client)
 
 
@@ -1090,6 +1181,36 @@ def handle_some_action(ack, body, client):
     project["approved"] = True
     project["dgr"] = True
     writeProject(id, project, user)
+    
+    # Open a slack conversation with the creator and get the channel ID
+    r = app.client.conversations_open(users=project["created by"])
+    channel_id = r["channel"]["id"]
+    
+    # Notify the creator
+    app.client.chat_postMessage(
+        channel=channel_id,
+        text=f'Your project "{project["title"]}" has been approved! You can now promote it to a channel of your choice. Additionally, we have marked this project as qualified for <{config["tax_info"]}|tax deductible donations>.',
+        blocks=[
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f'Your project "{project["title"]}" has been approved! You can now promote it to a channel of your choice.\nAdditionally, we have marked this project as qualified for <{config["tax_info"]}|tax deductible donations>.',
+                },
+                "accessory": {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Promote",
+                        "emoji": True,
+                    },
+                    "value": id,
+                    "action_id": "promoteSpecificProject_entry",
+                },
+            }
+        ],
+    )
+    
     updateHome(user=user, client=client)
 
 
