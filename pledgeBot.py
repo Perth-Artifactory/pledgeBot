@@ -68,6 +68,18 @@ def pledge(id, amount, user, percentage=False):
         amount = int(project["total"] * (amount/100))
     project["pledges"][user] = int(amount)
     writeProject(id,project,user=False)
+    
+    # Open a slack conversation with the donor and get the channel ID
+    r = app.client.conversations_open(users=user)
+    channel_id = r["channel"]["id"]
+    
+    # Notify/thank the donor
+    
+    app.client.chat_postMessage(channel=channel_id,
+                                text=f'We\'ve updated your *total* pledge for "{project["title"]}" to ${amount}. Thank you for your support!\n\nOnce the project is fully funded I\'ll be in touch to arrange payment.')
+    
+    # Send back an updated project block
+    
     return displayProject(id)+displaySpacer()+displayDonate(id)
 
 def projectOptions(restricted = False):
@@ -284,6 +296,16 @@ def displayApprove(id):
 				},
 				"value": id,
 				"action_id": "approve"
+			},
+			{
+				"type": "button",
+				"text": {
+					"type": "plain_text",
+					"text": "Approve as DGR qualified",
+					"emoji": True
+				},
+				"value": id,
+				"action_id": "approve_as_dgr"
 			}
 		]
 	}]
@@ -485,7 +507,7 @@ def displayHomeProjects(user,client):
     projects = loadProjects()
     blocks = []
     for project in projects:
-        if projects[project]["approved"]:
+        if projects[project].get("approved",False):
             blocks += displayProject(project)
             blocks += displayDonate(project,user=user,home=True)
             blocks += displaySpacer()
@@ -494,7 +516,7 @@ def displayHomeProjects(user,client):
 					"text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. ",
 					"emoji": True}]}]
         for project in projects:
-            if not projects[project]["approved"]:
+            if not projects[project].get("approved",False):
                 blocks += displayProject(project)
                 blocks += displayApprove(project)
                 blocks += displaySpacer()
@@ -689,7 +711,7 @@ def updateHome(user, client):
                                         "text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
                                 }
                         }
-            ] + displaySpacer() + displayHomeProjects(user=user) + docs,
+            ] + displaySpacer() + displayHomeProjects(client=client,user=user) + docs,
         }
 
     client.views_publish(
@@ -945,6 +967,17 @@ def handle_some_action(ack, body, client):
     user = body["user"]["id"]
     project = getProject(id)
     project["approved"] = True
+    writeProject(id,project,user)
+    updateHome(user=user, client=client)
+    
+@app.action("approve_as_dgr")
+def handle_some_action(ack, body, client):
+    ack()
+    id = body["actions"][0]["value"]
+    user = body["user"]["id"]
+    project = getProject(id)
+    project["approved"] = True
+    project["dgr"] = True
     writeProject(id,project,user)
     updateHome(user=user, client=client)
 
