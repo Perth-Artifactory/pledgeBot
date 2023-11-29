@@ -5,6 +5,7 @@ import string
 import random
 from pprint import pprint
 import requests
+import time
 
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -29,39 +30,42 @@ def writeProject(id, data, user):
     projects = loadProjects()
     if id not in projects.keys():
         data["created by"] = user
+        data["created at"] = int(time.time())
         data["last updated by"] = user
+        data["last updated at"] = int(time.time())
         # Projects should default to DGR False
         data["dgr"] = False
         projects[id] = data
         with open("projects.json", "w") as f:
             json.dump(projects, f, indent=4, sort_keys=True)
-            
+
         # Notify the admin channel
         app.client.chat_postMessage(
             channel=config["admin_channel"],
             text=f'"{data["title"]}" has been created by <@{user}>. It will need to be approved before it will show up on the full list of projects or to be marked as DGR eligible. This can be completed by any member of <@{config["admin_group"]}> by clicking on my name.',
         )
-        
+
     else:
         if user:
             data["last updated by"] = user
+            data["last updated at"] = int(time.time())
 
             # Send a notice to the admin channel and add further details as a thread
             reply = app.client.chat_postMessage(
                 channel=config["admin_channel"],
                 text=f'"{data["title"]}" has been updated by <@{user}>.',
             )
-            
+
             app.client.chat_postMessage(
                 channel=config["admin_channel"],
                 thread_ts=reply["ts"],
-                text=f'Old:\n```{json.dumps(loadProjects()[id], indent=4, sort_keys=True)}```',
+                text=f"Old:\n```{json.dumps(loadProjects()[id], indent=4, sort_keys=True)}```",
             )
-            
+
             app.client.chat_postMessage(
                 channel=config["admin_channel"],
                 thread_ts=reply["ts"],
-                text=f'New:\n```{json.dumps(data, indent=4, sort_keys=True)}```',
+                text=f"New:\n```{json.dumps(data, indent=4, sort_keys=True)}```",
             )
 
             # Send a notice to the project creator if they're not the one updating it
@@ -69,7 +73,7 @@ def writeProject(id, data, user):
                 # Open a slack conversation with the creator and get the channel ID
                 r = app.client.conversations_open(users=data["created by"])
                 channel_id = r["channel"]["id"]
-                
+
                 # Notify the creator
                 app.client.chat_postMessage(
                     channel=channel_id,
@@ -136,17 +140,30 @@ def pledge(id, amount, user, percentage=False):
             text=f'"{project["title"]}" has met its funding goal! For now the next step is for a backend admin to trigger invoice generation.',
         )
 
+        # Mark when the project was funded
+        project["funded at"] = int(time.time())
+        writeProject(id, project, user=False)
+
     # Send back an updated project block
 
     return displayProject(id) + displaySpacer() + displayDonate(id)
 
 
-def projectOptions(restricted=False):
+def projectOptions(restricted=False, approved=False):
     projects = loadProjects()
     options = []
     for project in projects:
+        # Don't present funded projects as options
+        if check_if_funded(id=project):
+            continue
+
+        # If only approved projects have been requested, skip unapproved projects
+        if approved:
+            if not projects[project].get("approved", False):
+                continue
+
         if restricted:
-            if projects[project]["created by"] == restricted:
+            if projects[project]["created by"] == restricted and not projects[project].get("approved", False):
                 options.append(
                     {
                         "text": {
@@ -209,6 +226,21 @@ def check_if_funded(project=None, id=None):
     if currentp >= project["total"]:
         return True
     return False
+
+
+def check_if_old(project=None, id=None):
+    """Returns True if the project was funded more than age_out_threshold days ago"""
+    if id:
+        project = getProject(id)
+
+    if "funded at" in project.keys():
+        if (
+            int(time.time()) - project["funded at"]
+            > 86400 * config["age_out_threshold"]
+        ):
+            return True
+        return False
+    return True
 
 
 #####################
@@ -338,20 +370,6 @@ def displayProject(id):
         },
     ]
 
-    if project.get("dgr", False):
-        blocks = blocks + displaySpacer()
-        blocks.append(
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f'Donations to this project are considered gifts to {tidyhq_org["name"]} and are <{config["tax_info"]}|tax deductible>.',
-                    }
-                ],
-            }
-        )
-
     return blocks
 
 
@@ -374,11 +392,23 @@ def displayApprove(id):
                     "type": "button",
                     "text": {
                         "type": "plain_text",
-                        "text": "Approve as DGR qualified",
+                        "text": "Approve + DGR",
                         "emoji": True,
                     },
+                    "style": "primary",
                     "value": id,
                     "action_id": "approve_as_dgr",
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Edit project",
+                        "emoji": True,
+                    },
+                    "style": "danger",
+                    "value": id,
+                    "action_id": "editSpecificProject",
                 },
             ],
         }
@@ -399,7 +429,7 @@ def displayDonate(id, user=None, home=False):
                 "elements": [
                     {
                         "type": "plain_text",
-                        "text": "This project has met it's funding goal :heart: Thank you to everyone that donated, I'll contact you soon to arrange payment.",
+                        "text": "This project has met it's funding goal :heart: Thank you to everyone that donated.",
                         "emoji": True,
                     }
                 ],
@@ -457,6 +487,19 @@ def displayDonate(id, user=None, home=False):
                 ],
             },
         ]
+        project = getProject(id)
+        if project.get("dgr", False):
+            blocks += [
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f'Donations to this project are considered gifts to {tidyhq_org["name"]} and are <{config["tax_info"]}|tax deductible>.',
+                        }
+                    ],
+                }
+            ]
 
     project = getProject(id)
     # This should really only be used in the App Home since it provides personalised results
@@ -520,6 +563,12 @@ def displayEditLoad(id):
 
 def displaySpacer():
     return [{"type": "divider"}]
+
+
+def displayHeader(s):
+    return [
+        {"type": "header", "text": {"type": "plain_text", "text": s, "emoji": True}}
+    ]
 
 
 def displayPromote(id=False):
@@ -591,48 +640,86 @@ def createProgressBar(current, total, segments=7):
 
 def displayHomeProjects(user, client):
     projects = loadProjects()
-    blocks = []
+
+    blocks = displayHeader("Projects seeking donations")
+    blocks += [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "Everyone has different ideas about what the space needs. These are some of the projects currently seeking donations.",
+            },
+        }
+    ]
     for project in projects:
-        if projects[project].get("approved", False):
+        if projects[project].get("approved", False) and not check_if_funded(id=project):
             blocks += displayProject(project)
             blocks += displayDonate(project, user=user, home=True)
             blocks += displaySpacer()
+
+    blocks += displayHeader("Recently funded projects")
+    for project in projects:
+        if check_if_funded(id=project) and not check_if_old(id=project):
+            blocks += displayProject(project)
+            blocks += displaySpacer()
+
     if auth(user=user, client=client):
-        blocks += [
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "plain_text",
-                        "text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. ",
-                        "emoji": True,
-                    }
-                ],
-            }
-        ]
+        blocks += displayHeader("Projects awaiting approval")
         for project in projects:
             if not projects[project].get("approved", False):
                 blocks += displayProject(project)
                 blocks += displayApprove(project)
                 blocks += displaySpacer()
     else:
+        not_yet_approved = []
         for project in projects:
             if (
-                not projects[project]["approved"]
+                not projects[project].get("approved", False)
                 and projects[project]["created by"] == user
             ):
+                not_yet_approved.append(project)
+
+        if len(not_yet_approved) > 0:
+            blocks += displayHeader("Your projects awaiting approval")
+            blocks += [
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "plain_text",
+                            "text": f'These are projects you have created that haven\'t been approved yet. Press the "Request approval" button once your project is ready to go.',
+                            "emoji": True,
+                        }
+                    ],
+                }
+            ]
+            for project in not_yet_approved:
                 blocks += displayProject(project)
                 blocks += [
                     {
-                        "type": "context",
+                        "type": "actions",
                         "elements": [
                             {
-                                "type": "plain_text",
-                                "text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. Ping a committee member when your project is ready for approval".format(
-                                    config["admin_group"]
-                                ),
-                                "emoji": True,
-                            }
+                                "type": "button",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": "Edit project",
+                                    "emoji": True,
+                                },
+                                "value": project,
+                                "action_id": "editSpecificProject",
+                            },
+                            {
+                                "type": "button",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": "Request approval",
+                                    "emoji": True,
+                                },
+                                "value": project,
+                                "style": "primary",
+                                "action_id": "requestProjectApproval",
+                            },
                         ],
                     }
                 ]
@@ -733,7 +820,7 @@ def updateHome(user, client):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.",
+                "text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.\n\nOnce your project has been created it will need to be approved before people can donate to it. You can trigger the approval process by pressing the request button attached to your project.",
             },
             "accessory": {
                 "type": "button",
@@ -758,7 +845,7 @@ def updateHome(user, client):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "You can either update a project using `/pledge update` or by using the button here.\n We've given you complete freedom to update the details of your project and trust you to use this power responsibly. Existing promotional messages won't be updated unless someone interacts with them (donates).",
+                "text": "You can either update a project using `/pledge update` or by using the button here.\n Once your project has been approved you won't be able to edit it. If you need to make changes after this point you'll need to ask a committee member to perform them on your behalf.",
             },
             "accessory": {
                 "type": "button",
@@ -783,7 +870,7 @@ def updateHome(user, client):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "You can either update a project using `/pledge promote` or by using the buttons next to each project listed above.\n\n pledgeBot will post a promotional message in a public channel of your choosing. For channels dedicated to a particular project you could pin the promotional message as an easy way of reminding people that they can donate.\nBeyond the technical functions we suggest actively talking about your project in the most relevant channel. If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to start.",
+                "text": "You can either update a project using `/pledge promote` or by using the buttons next to each project listed above.\n\n pledgeBot will post a promotional message in a public channel of your choosing. For channels dedicated to a particular project you could pin the promotional message as an easy way of reminding people that they can donate.\nBeyond the technical functions we suggest actively talking about your project in the most relevant channel. eg, If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to start.",
             },
             "accessory": {
                 "type": "button",
@@ -804,25 +891,14 @@ def updateHome(user, client):
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively reaching out to a <!subteam^SFH110QD8> committee member will put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150> or raise an issue on <https://github.com/Perth-Artifactory/pledgeBot/issues|GitHub>.",
+                "text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively if you reach out to a committee member they'll put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150> or raise an issue on <https://github.com/Perth-Artifactory/pledgeBot/issues|GitHub>.",
             },
         },
     ]
 
     home_view = {
         "type": "home",
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations.",
-                },
-            }
-        ]
-        + displaySpacer()
-        + displayHomeProjects(client=client, user=user)
-        + docs,
+        "blocks": displayHomeProjects(client=client, user=user) + docs,
     }
 
     client.views_publish(user_id=user, view=home_view)
@@ -884,12 +960,11 @@ def handle_view_events(ack, body):
         ]["value"]
     except TypeError:
         id = body["view"]["private_metadata"]
-    
+
     channel = body["view"]["state"]["values"]["promote"]["conversationSelector"][
         "selected_conversation"
     ]
     title = getProject(id)["title"]
-    print("sending {} ({}) to {}".format(title, id, channel))
 
     # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
     app.client.chat_postMessage(
@@ -924,6 +999,29 @@ def projectSelected(ack, body, respond, client):
                 "type": "plain_text",
                 "text": "Update Project",
             },  # project["title"]
+            "submit": {"type": "plain_text", "text": "Update!"},
+            "blocks": constructEdit(id),
+            "private_metadata": id,
+        },
+    )
+
+
+@app.action("editSpecificProject")
+def projectSelected(ack, body, respond, client):
+    ack()
+
+    id = body["actions"][0]["value"]
+    client.views_open(
+        # Pass a valid trigger_id within 3 seconds of receiving it
+        trigger_id=body["trigger_id"],
+        # View payload
+        view={
+            "type": "modal",
+            "callback_id": "updateData",
+            "title": {
+                "type": "plain_text",
+                "text": "Update Project",
+            },
             "submit": {"type": "plain_text", "text": "Update!"},
             "blocks": constructEdit(id),
             "private_metadata": id,
@@ -1050,6 +1148,7 @@ def handle_some_action(ack, body, respond, client):
         },
     )
 
+
 @app.action("promoteSpecificProject_entry")
 def handle_some_action(ack, body, client):
     ack()
@@ -1068,8 +1167,6 @@ def handle_some_action(ack, body, client):
             "private_metadata": project_id,
         },
     )
-
-
 
 
 @app.action("promoteFromHome")
@@ -1138,12 +1235,13 @@ def handle_some_action(ack, body, client):
     user = body["user"]["id"]
     project = getProject(id)
     project["approved"] = True
-    writeProject(id, project, user)
-    
+    project["approved_at"] = int(time.time())
+    writeProject(id, project, user=None)
+
     # Open a slack conversation with the creator and get the channel ID
     r = app.client.conversations_open(users=project["created by"])
     channel_id = r["channel"]["id"]
-    
+
     # Notify the creator
     app.client.chat_postMessage(
         channel=channel_id,
@@ -1168,7 +1266,38 @@ def handle_some_action(ack, body, client):
             }
         ],
     )
-    
+
+    # Check container type
+
+    # Coming from a modal, typically home
+    if body["container"]["type"] == "view":
+        # Send a notification to the admin channel
+        app.client.chat_postMessage(
+            channel=config["admin_channel"],
+            text=f'"{project["title"]}" has been approved by <@{user}>.',
+        )
+
+    # Coming from a message, which means we can just update that message
+    elif body["container"]["type"] == "message":
+        # Take out the approval buttons
+        blocks = body["message"]["blocks"][:-1]
+        blocks += [
+            {
+                "type": "context",
+                "elements": [
+                    {"type": "mrkdwn", "text": f"<@{user}> approved this project"}
+                ],
+            }
+        ]
+
+        app.client.chat_update(
+            channel=body["container"]["channel_id"],
+            ts=body["container"]["message_ts"],
+            blocks=blocks,
+            text=f"Project approved by <@{user}>",
+            as_user=True,
+        )
+
     updateHome(user=user, client=client)
 
 
@@ -1179,13 +1308,14 @@ def handle_some_action(ack, body, client):
     user = body["user"]["id"]
     project = getProject(id)
     project["approved"] = True
+    project["approved_at"] = int(time.time())
     project["dgr"] = True
-    writeProject(id, project, user)
-    
+    writeProject(id, project, user=None)
+
     # Open a slack conversation with the creator and get the channel ID
     r = app.client.conversations_open(users=project["created by"])
     channel_id = r["channel"]["id"]
-    
+
     # Notify the creator
     app.client.chat_postMessage(
         channel=channel_id,
@@ -1210,7 +1340,80 @@ def handle_some_action(ack, body, client):
             }
         ],
     )
-    
+
+    # Check container type
+
+    # Coming from a modal, typically home
+    if body["container"]["type"] == "view":
+        # Send a notification to the admin channel
+        app.client.chat_postMessage(
+            channel=config["admin_channel"],
+            text=f'"{project["title"]}" has been marked as tax deductible and approved by <@{user}>.',
+        )
+
+    # Coming from a message, which means we can just update that message
+    elif body["container"]["type"] == "message":
+        # Take out the approval buttons
+        blocks = body["message"]["blocks"][:-1]
+        blocks += [
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"<@{user}> marked this as tax deductible and approved",
+                    }
+                ],
+            }
+        ]
+
+        app.client.chat_update(
+            channel=body["container"]["channel_id"],
+            ts=body["container"]["message_ts"],
+            blocks=blocks,
+            text=f"Project approved by <@{user}>",
+            as_user=True,
+        )
+
+    updateHome(user=user, client=client)
+
+
+@app.action("requestProjectApproval")
+def handle_some_action(ack, body, client):
+    ack()
+    id = body["actions"][0]["value"]
+    user = body["user"]["id"]
+    project = getProject(id)
+
+    # Send prompt to admins
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f'"{project["title"]}" has been submitted for approval by <@{user}>. Please review the project.',
+            },
+        }
+    ]
+    blocks += displayProject(id)
+    blocks += displayApprove(id)
+
+    app.client.chat_postMessage(
+        channel=config["admin_channel"],
+        text=f'<@{user}> has requested approval for "{project["title"]}".',
+        blocks=blocks,
+    )
+
+    # Open a slack conversation with the creator and get the channel ID
+    r = app.client.conversations_open(users=project["created by"])
+    channel_id = r["channel"]["id"]
+
+    # Notify the creator
+    app.client.chat_postMessage(
+        channel=channel_id,
+        text=f'Your project "{project["title"]}" has been submitted for approval.',
+    )
+
     updateHome(user=user, client=client)
 
 
@@ -1222,12 +1425,12 @@ def sendOptions(ack, body, client):
     if auth(user=body["user"]["id"], client=client):
         ack(options=projectOptions())
     else:
-        ack(options=projectOptions(restricted=body["user"]["id"]))
+        ack(options=projectOptions(restricted=body["user"]["id"], approved=False))
 
 
 @app.options("projectPreviewSelector")
-def handle_some_options(ack):
-    ack(options=projectOptions())
+def handle_some_options(ack, body):
+    ack(options=projectOptions(approved=True))
 
 
 # Update the app home
