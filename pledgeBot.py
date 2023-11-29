@@ -28,7 +28,6 @@ def loadProjects():
 def writeProject(id, data, user):
     projects = loadProjects()
     if id not in projects.keys():
-        # TODO show old data somewhere in slack
         data["created by"] = user
         data["last updated by"] = user
         # Projects should default to DGR False
@@ -36,9 +35,34 @@ def writeProject(id, data, user):
         projects[id] = data
         with open("projects.json", "w") as f:
             json.dump(projects, f, indent=4, sort_keys=True)
+            
+        # Notify the admin channel
+        app.client.chat_postMessage(
+            channel=config["admin_channel"],
+            text=f'"{data["title"]}" has been created by <@{user}>. It will need to be approved before it will show up on the full list of projects or to be marked as DGR eligible. This can be completed by any member of <@{config["admin_group"]}> by clicking on my name.',
+        )
+        
     else:
         if user:
             data["last updated by"] = user
+
+            # Send a notice to the admin channel and add further details as a thread
+            reply = app.client.chat_postMessage(
+                channel=config["admin_channel"],
+                text=f'"{data["title"]}" has been updated by <@{user}>.',
+            )
+            
+            app.client.chat_postMessage(
+                channel=config["admin_channel"],
+                thread_ts=reply["ts"],
+                text=f'Old:\n```{json.dumps(loadProjects()[id], indent=4, sort_keys=True)}```',
+            )
+            
+            app.client.chat_postMessage(
+                channel=config["admin_channel"],
+                thread_ts=reply["ts"],
+                text=f'New:\n```{json.dumps(data, indent=4, sort_keys=True)}```',
+            )
 
         projects[id] = data
         with open("projects.json", "w") as f:
