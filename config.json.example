@@ -8,5 +8,6 @@
   "tidyhq_project_category": 123,
   "tidyhq_slack_id_field": ""
   "admin_group": "SXXXXXXX",
-  "admin_channel": ""
+  "admin_channel": "",
+  "tax_info": "https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/gifts-and-donations"
 }
