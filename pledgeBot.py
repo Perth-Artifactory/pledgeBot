@@ -153,6 +153,9 @@ def projectOptions(restricted=False):
     projects = loadProjects()
     options = []
     for project in projects:
+        # Don't present funded projects as options
+        if check_if_funded(project=project):
+            continue
         if restricted:
             if projects[project]["created by"] == restricted:
                 options.append(
