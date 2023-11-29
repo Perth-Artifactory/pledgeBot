@@ -41,11 +41,17 @@ def send_invoices(p):
     if p.get("dgr", False):
         title_prefix = "Gift/Donation for: "
         message_suffix = "\nAs a reminder your donation to this project is tax deductible."
+        admin_suffix = "\nThese invoices have been marked as tax deductible."
         category = config["tidyhq_dgr_category"]
     else:
         title_prefix = "Project pledge: "
         message_suffix = ""
+        admin_suffix = "\nThese invoices have **not** been marked as tax deductible."
         category = config["tidyhq_project_category"]
+        
+    admin_notifaction = f'Invoices for {p["title"]} have been created: '
+    sent_total = 0
+    
     for pledge in p["pledges"]:
         amount = p["pledges"][pledge]
         r = requests.post(
@@ -65,6 +71,8 @@ def send_invoices(p):
         )
         invoice = r.json()
         print(f'${invoice["amount"]} invoice created for {users[pledge][0]} (https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}))')
+        admin_notifaction += f'\n* ${invoice["amount"]} for <@{users[pledge][1]}> - <https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}|{invoice["id"]}>'
+        sent_total += invoice["amount"]
         
         # Open a slack conversation with the donor and get the channel ID
         r = app.client.conversations_open(users=pledge)
@@ -89,6 +97,19 @@ def send_invoices(p):
     )    
     
     print(f'Invoice notification sent to {users[p["created by"]][0]} as project creator')
+    
+    # Send invoice creation details to the admin channel
+    
+    admin_notifaction += f'\n\nProject goal: ${p["total"]}'
+    admin_notifaction += f'\nTotal sent: ${sent_total}'
+    admin_notifaction += admin_suffix
+    admin_notifaction += f'\n\nA notification has also been sent to <@{p["created by"]}> as the project creator. They\'ve been asked to contact the Treasurer for the next steps.'
+    
+    
+    app.client.chat_postMessage(
+        channel=config["admin_channel"],
+        text=admin_notifaction
+    )
 
 
 # Initialise slack
