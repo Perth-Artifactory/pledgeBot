@@ -359,20 +359,6 @@ def displayProject(id):
         },
     ]
 
-    if project.get("dgr", False):
-        blocks = blocks + displaySpacer()
-        blocks.append(
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f'Donations to this project are considered gifts to {tidyhq_org["name"]} and are <{config["tax_info"]}|tax deductible>.',
-                    }
-                ],
-            }
-        )
-
     return blocks
 
 
@@ -420,7 +406,7 @@ def displayDonate(id, user=None, home=False):
                 "elements": [
                     {
                         "type": "plain_text",
-                        "text": "This project has met it's funding goal :heart: Thank you to everyone that donated, I'll contact you soon to arrange payment.",
+                        "text": "This project has met it's funding goal :heart: Thank you to everyone that donated.",
                         "emoji": True,
                     }
                 ],
@@ -478,6 +464,18 @@ def displayDonate(id, user=None, home=False):
                 ],
             },
         ]
+        project = getProject(id)
+        if project.get("dgr", False):
+            blocks += [
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f'Donations to this project are considered gifts to {tidyhq_org["name"]} and are <{config["tax_info"]}|tax deductible>.',
+                        }
+                    ],
+                }]
 
     project = getProject(id)
     # This should really only be used in the App Home since it provides personalised results
