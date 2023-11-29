@@ -68,6 +68,18 @@ def pledge(id, amount, user, percentage=False):
         amount = int(project["total"] * (amount/100))
     project["pledges"][user] = int(amount)
     writeProject(id,project,user=False)
+    
+    # Open a slack conversation with the donor and get the channel ID
+    r = app.client.conversations_open(users=user)
+    channel_id = r["channel"]["id"]
+    
+    # Notify/thank the donor
+    
+    app.client.chat_postMessage(channel=channel_id,
+                                text=f'We\'ve updated your *total* pledge for "{project["title"]}" to ${amount}. Thank you for your support!\n\nOnce the project is fully funded I\'ll be in touch to arrange payment.')
+    
+    # Send back an updated project block
+    
     return displayProject(id)+displaySpacer()+displayDonate(id)
 
 def projectOptions(restricted = False):
