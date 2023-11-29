@@ -690,7 +690,7 @@ def entryPoints(ack, respond, command, client, body):
                 "type": "modal",
                 # View identifier
                 "callback_id": "loadProject",
-                "title": {"type": "plain_text", "text": "Update: "},
+                "title": {"type": "plain_text", "text": "Select Project"},
                 "submit": {"type": "plain_text", "text": "Update!"},
                 "blocks": displayEditLoad(id=False),
             },
@@ -922,7 +922,7 @@ def projectSelected(ack, body, respond, client):
             "callback_id": "updateData",
             "title": {
                 "type": "plain_text",
-                "text": "Update: {}".format(id),
+                "text": "Update Project",
             },  # project["title"]
             "submit": {"type": "plain_text", "text": "Update!"},
             "blocks": constructEdit(id),
@@ -1101,7 +1101,7 @@ def handle_some_action(ack, body, client):
             "type": "modal",
             # View identifier
             "callback_id": "loadProject",
-            "title": {"type": "plain_text", "text": "Update: "},
+            "title": {"type": "plain_text", "text": "Select Project"},
             "submit": {"type": "plain_text", "text": "Update!"},
             "blocks": displayEditLoad(id=False),
         },
