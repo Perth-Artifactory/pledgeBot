@@ -149,13 +149,19 @@ def pledge(id, amount, user, percentage=False):
     return displayProject(id) + displaySpacer() + displayDonate(id)
 
 
-def projectOptions(restricted=False):
+def projectOptions(restricted=False, approved=False):
     projects = loadProjects()
     options = []
     for project in projects:
         # Don't present funded projects as options
         if check_if_funded(id=project):
             continue
+
+        # If only approved projects have been requested, skip unapproved projects
+        if approved:
+            if not projects[project].get("approved", False):
+                continue
+
         if restricted:
             if projects[project]["created by"] == restricted:
                 options.append(
@@ -959,7 +965,6 @@ def handle_view_events(ack, body):
         "selected_conversation"
     ]
     title = getProject(id)["title"]
-    print("sending {} ({}) to {}".format(title, id, channel))
 
     # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
     app.client.chat_postMessage(
@@ -1263,36 +1268,34 @@ def handle_some_action(ack, body, client):
     )
 
     # Check container type
-    
+
     # Coming from a modal, typically home
     if body["container"]["type"] == "view":
-        
         # Send a notification to the admin channel
         app.client.chat_postMessage(
             channel=config["admin_channel"],
             text=f'"{project["title"]}" has been approved by <@{user}>.',
         )
-    
+
     # Coming from a message, which means we can just update that message
     elif body["container"]["type"] == "message":
         # Take out the approval buttons
         blocks = body["message"]["blocks"][:-1]
-        blocks += [{
-			"type": "context",
-			"elements": [
-				{
-					"type": "mrkdwn",
-					"text": f'<@{user}> approved this project'
-				}
-			]
-		}]
-        
+        blocks += [
+            {
+                "type": "context",
+                "elements": [
+                    {"type": "mrkdwn", "text": f"<@{user}> approved this project"}
+                ],
+            }
+        ]
+
         app.client.chat_update(
             channel=body["container"]["channel_id"],
             ts=body["container"]["message_ts"],
-            blocks = blocks,
-            text = f'Project approved by <@{user}>',
-            as_user=True
+            blocks=blocks,
+            text=f"Project approved by <@{user}>",
+            as_user=True,
         )
 
     updateHome(user=user, client=client)
@@ -1337,65 +1340,68 @@ def handle_some_action(ack, body, client):
             }
         ],
     )
-    
+
     # Check container type
-    
+
     # Coming from a modal, typically home
     if body["container"]["type"] == "view":
-        
         # Send a notification to the admin channel
         app.client.chat_postMessage(
             channel=config["admin_channel"],
             text=f'"{project["title"]}" has been marked as tax deductible and approved by <@{user}>.',
         )
-    
+
     # Coming from a message, which means we can just update that message
     elif body["container"]["type"] == "message":
         # Take out the approval buttons
         blocks = body["message"]["blocks"][:-1]
-        blocks += [{
-			"type": "context",
-			"elements": [
-				{
-					"type": "mrkdwn",
-					"text": f'<@{user}> marked this as tax deductible and approved'
-				}
-			]
-		}]
-        
+        blocks += [
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"<@{user}> marked this as tax deductible and approved",
+                    }
+                ],
+            }
+        ]
+
         app.client.chat_update(
             channel=body["container"]["channel_id"],
             ts=body["container"]["message_ts"],
-            blocks = blocks,
-            text = f'Project approved by <@{user}>',
-            as_user=True
+            blocks=blocks,
+            text=f"Project approved by <@{user}>",
+            as_user=True,
         )
 
     updateHome(user=user, client=client)
+
 
 @app.action("requestProjectApproval")
 def handle_some_action(ack, body, client):
     ack()
     id = body["actions"][0]["value"]
     user = body["user"]["id"]
-    print(id)
     project = getProject(id)
-    
+
     # Send prompt to admins
-    blocks = [{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": f'"{project["title"]}" has been submitted for approval by <@{user}>. Please review the project.',
-			}
-		}]
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f'"{project["title"]}" has been submitted for approval by <@{user}>. Please review the project.',
+            },
+        }
+    ]
     blocks += displayProject(id)
     blocks += displayApprove(id)
-    
+
     app.client.chat_postMessage(
         channel=config["admin_channel"],
         text=f'<@{user}> has requested approval for "{project["title"]}".',
-        blocks = blocks
+        blocks=blocks,
     )
 
     # Open a slack conversation with the creator and get the channel ID
@@ -1423,8 +1429,8 @@ def sendOptions(ack, body, client):
 
 
 @app.options("projectPreviewSelector")
-def handle_some_options(ack):
-    ack(options=projectOptions())
+def handle_some_options(ack, body):
+    ack(options=projectOptions(approved=True))
 
 
 # Update the app home
