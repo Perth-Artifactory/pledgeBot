@@ -93,7 +93,7 @@ def send_invoices(p):
     # Send a message to the project creator to let them know the invoices have been created
     app.client.chat_postMessage(
         channel=channel_id,
-        text=f'The funding goal for {p["title"]} has been met and invoices have been sent out. Please contact the Treasurer for the next steps.'
+        text=f'The funding goal for a project you created ({p["title"]}) has been met and invoices have been sent out. Please contact the Treasurer for the next steps.'
     )    
     
     print(f'Invoice notification sent to {users[p["created by"]][0]} as project creator')
