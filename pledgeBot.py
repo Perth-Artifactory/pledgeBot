@@ -667,7 +667,7 @@ def updateHome(user, client):
                                         "text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
                                 }
                         }
-            ] + displaySpacer() + displayHomeProjects(user=user) + docs,
+            ] + displaySpacer() + displayHomeProjects(client=client,user=user) + docs,
         }
 
     client.views_publish(
