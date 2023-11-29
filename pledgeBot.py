@@ -70,7 +70,7 @@ def pledge(id, amount, user, percentage=False):
     writeProject(id,project,user=False)
     
     # Open a slack conversation with the donor and get the channel ID
-    r = app.client.conversations_open(users=pledge)
+    r = app.client.conversations_open(users=user)
     channel_id = r["channel"]["id"]
     
     # Notify/thank the donor
@@ -669,7 +669,7 @@ def updateHome(user, client):
                                         "text": "Everyone has different ideas about what the space needs. These are some of the projects/proposals currently seeking donations."
                                 }
                         }
-            ] + displaySpacer() + displayHomeProjects(user=user) + docs,
+            ] + displaySpacer() + displayHomeProjects(client=client,user=user) + docs,
         }
 
     client.views_publish(
