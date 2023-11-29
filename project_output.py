@@ -41,9 +41,9 @@ def send_invoices(p):
     if p.get("dgr", False):
         title_prefix = "Gift/Donation for: "
         message_suffix = (
-            "\nAs a reminder your donation to this project is tax deductible."
+            f'\nAs a reminder your donation to this project is <{config["tax_info"]}|tax deductible>.'
         )
-        admin_suffix = "\nThese invoices have been marked as tax deductible."
+        admin_suffix = f'\nThese invoices have been marked as <{config["tax_info"]}|tax deductible>.'
         category = config["tidyhq_dgr_category"]
     else:
         title_prefix = "Project pledge: "
