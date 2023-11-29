@@ -327,7 +327,7 @@ def displayDonate(id,user=None,home=False):
                         "elements": [
                                 {
                                         "type": "plain_text",
-                                        "text": "This project has met it's funding goal.",
+                                        "text": "This project has met it's funding goal :heart: Thank you to everyone that donated, I'll contact you soon to arrange payment.",
                                         "emoji": True
                                 }
                         ]
