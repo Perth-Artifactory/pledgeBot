@@ -63,8 +63,8 @@ def send_invoices(p):
                 "metadata": "Automatically added via api",
             },
         )
-        print(r.content)
-        invoice_id = r.json()["id"]
+        invoice = r.json()
+        print(f'${invoice["amount"]} invoice created for {users[pledge][0]} (https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}))')
         
         # Open a slack conversation with the donor and get the channel ID
         r = app.client.conversations_open(users=pledge)
@@ -73,7 +73,7 @@ def send_invoices(p):
         # Send a message to the donor to let them know an invoice has been created
         app.client.chat_postMessage(
             channel=channel_id,
-            text=f'Hi <@{users[pledge][0]}>,\n\nThe funding goal for {p["title"]} has been met. I\'ve created an invoice for ${amount} which you can find <https://{domain}.tidyhq.com/public/invoices/{invoice_id}|here>.{message_suffix}'
+            text=f'Hi <@{users[pledge][1]}>,\n\nThe funding goal for {p["title"]} has been met. I\'ve created an invoice for ${amount} which you can find <https://{domain}.tidyhq.com/public/invoices/{invoice["id"]}|here>.{message_suffix}'
         )
         
         print(f'Invoice notification sent to {users[pledge][0]}')
