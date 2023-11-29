@@ -92,6 +92,14 @@ def pledge(id, amount, user, percentage=False):
         text=f'We\'ve updated your *total* pledge for "{project["title"]}" to ${amount}. Thank you for your support!\n\nOnce the project is fully funded I\'ll be in touch to arrange payment.',
     )
 
+    # Check if the project has met its goal
+    if check_if_funded(id=id):
+        # Notify the admin channel
+        app.client.chat_postMessage(
+            channel=config["admin_channel"],
+            text=f'"{project["title"]}" has met its funding goal! For now the next step is for a backend admin to trigger invoice generation.',
+        )
+
     # Send back an updated project block
 
     return displayProject(id) + displaySpacer() + displayDonate(id)
