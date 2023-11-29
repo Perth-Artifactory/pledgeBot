@@ -154,7 +154,7 @@ def projectOptions(restricted=False):
     options = []
     for project in projects:
         # Don't present funded projects as options
-        if check_if_funded(project=project):
+        if check_if_funded(id=project):
             continue
         if restricted:
             if projects[project]["created by"] == restricted:
@@ -382,16 +382,27 @@ def displayApprove(id):
                     "text": {
                         "type": "plain_text",
                         "text": "Approve + DGR",
-                        "emoji": True,
+                        "emoji": True
                     },
+                    "style": "primary",
                     "value": id,
                     "action_id": "approve_as_dgr",
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Edit project",
+                        "emoji": True,
+                    },
+                    "style": "danger",
+                    "value": id,
+                    "action_id": "editSpecificProject",
                 },
             ],
         }
     ]
     return blocks
-
 
 def displayDonate(id, user=None, home=False):
     homeadd = ""
@@ -630,7 +641,7 @@ def displayHomeProjects(user, client):
             
     blocks += displayHeader("Recently funded projects")
     for project in projects:
-        if check_if_funded(id=project) and check_if_old(id=project):
+        if check_if_funded(id=project) and not check_if_old(id=project):
             blocks += displayProject(project)
             blocks += displaySpacer()
             
@@ -950,6 +961,29 @@ def projectSelected(ack, body, respond, client):
             "private_metadata": id,
         },
     )
+    
+@app.action("editSpecificProject")
+def projectSelected(ack, body, respond, client):
+    ack()
+    
+    id = body["actions"][0]["value"]
+    client.views_open(
+        # Pass a valid trigger_id within 3 seconds of receiving it
+        trigger_id=body["trigger_id"],
+        # View payload
+        view={
+            "type": "modal",
+            "callback_id": "updateData",
+            "title": {
+                "type": "plain_text",
+                "text": "Update Project",
+            },
+            "submit": {"type": "plain_text", "text": "Update!"},
+            "blocks": constructEdit(id),
+            "private_metadata": id,
+        },
+    )
+    print("brought up specific editor for {}".format(id))
 
 
 # Donate buttons with inline update
