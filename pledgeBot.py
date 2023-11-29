@@ -395,7 +395,7 @@ def displayApprove(id):
                     "type": "button",
                     "text": {
                         "type": "plain_text",
-                        "text": "Approve as DGR qualified",
+                        "text": "Approve + DGR",
                         "emoji": True,
                     },
                     "value": id,
@@ -542,6 +542,9 @@ def displayEditLoad(id):
 def displaySpacer():
     return [{"type": "divider"}]
 
+def displayHeader(s):
+    return [{"type": "header", "text": {"type": "plain_text", "text": s, "emoji": True}}]
+
 
 def displayPromote(id=False):
     blocks = [
@@ -612,53 +615,55 @@ def createProgressBar(current, total, segments=7):
 
 def displayHomeProjects(user, client):
     projects = loadProjects()
-    blocks = []
+    
+    blocks = displayHeader("Projects seeking donations")
     for project in projects:
-        if projects[project].get("approved", False) and not check_if_old(project=project):
+        if projects[project].get("approved", False) and not check_if_funded(id=project):
             blocks += displayProject(project)
             blocks += displayDonate(project, user=user, home=True)
             blocks += displaySpacer()
+            
+    blocks += displayHeader("Recently funded projects")
+    for project in projects:
+        if check_if_funded(id=project) and check_if_old(id=project):
+            blocks += displayProject(project)
+            blocks += displaySpacer()
+            
     if auth(user=user, client=client):
-        blocks += [
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "plain_text",
-                        "text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. ",
-                        "emoji": True,
-                    }
-                ],
-            }
-        ]
+        blocks += displayHeader("Projects awaiting approval")
         for project in projects:
             if not projects[project].get("approved", False):
                 blocks += displayProject(project)
                 blocks += displayApprove(project)
                 blocks += displaySpacer()
     else:
+        not_yet_approved = []
         for project in projects:
             if (
                 not projects[project]["approved"]
                 and projects[project]["created by"] == user
             ):
+                not_yet_approved.append(project)
+                
+        if len(not_yet_approved) > 0:
+            blocks += displayHeader("Your projects awaiting approval")
+            blocks += [
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "plain_text",
+                            "text": f'These are projects you have created that haven\'t been approved yet. Contact a member of <@{config["admin_group"]}> to get them approved.',
+                            "emoji": True,
+                        }
+                    ],
+                }
+            ]
+            for project in not_yet_approved:
                 blocks += displayProject(project)
-                blocks += [
-                    {
-                        "type": "context",
-                        "elements": [
-                            {
-                                "type": "plain_text",
-                                "text": "The following projects haven't been approved yet. They can still be promoted by users but they won't appear on the list above. Ping a committee member when your project is ready for approval".format(
-                                    config["admin_group"]
-                                ),
-                                "emoji": True,
-                            }
-                        ],
-                    }
-                ]
                 blocks += displaySpacer()
     return blocks
+
 
 
 ######################
