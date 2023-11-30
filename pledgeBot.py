@@ -834,41 +834,29 @@ def displayHeader(s: str) -> list[dict[str, Any]]:
 
 
 def displayPromote(id: str | bool = False) -> list[dict[str, Any]]:
-    blocks = [
-        {
-            "type": "actions",
-            "block_id": "promote",
-            "elements": [
-                {
-                    "type": "conversations_select",
-                    "placeholder": {
-                        "type": "plain_text",
-                        "text": "Select a public channel",
-                        "emoji": True,
-                    },
-                    "filter": {"include": ["public"]},
-                    "action_id": "conversationSelector",
-                    "default_to_current_conversation": True,
-                },
-                {
-                    "type": "external_select",
-                    "action_id": "projectPreviewSelector",
-                    "placeholder": {
-                        "type": "plain_text",
-                        "text": "Select a project to update",
-                    },
-                    "min_query_length": 0,
-                },
-            ],
-        }
-    ]
-    if id and type(id) == str and type(blocks[0]["block_id"]) == str:
-        # Remove the project selector
-        del blocks[0]["elements"][1]  # type: ignore
+    blocks: list[dict[str, Any]] = []
 
     help = displayHelp("promote", raw=False)
     if type(help) == list:
         blocks += help
+
+    blocks = [
+        {
+            "type": "input",
+            "element": {
+                "type": "conversations_select",
+                "filter": {"include": ["public"]},
+                "initial_conversation": "C0LQBEQ2Y",
+            },
+            "label": {
+                "type": "plain_text",
+                "text": "Pick a public channel",
+                "emoji": True,
+            },
+            "optional": False,
+        }
+    ]
+
     return blocks
 
 
@@ -1054,8 +1042,10 @@ def displayHelp(article: str, raw: bool = False) -> str | list[dict[str, Any]]:
     articles[
         "promote"
     ] = """This will share the project to a public channel of your choosing.
-    For channels dedicated to a particular project you could pin the message as an easy way of reminding people that they can donate.
-    We also suggest actively talking about your project in the most relevant channel. eg, If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to generate hype."""
+    
+For channels dedicated to a particular project you could pin the message as an easy way of reminding people that they can donate.
+    
+We also suggest actively talking about your project in the most relevant channel. eg, If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to generate hype."""
     articles[
         "personal_unapproved"
     ] = 'These are projects you have created that haven\'t been approved yet. Press the "Request approval" button once your project is ready to go.'
@@ -1146,16 +1136,14 @@ def updateData(ack, body: dict[str, Any], client: WebClient):  # type: ignore
 @app.view("promoteProject")  # type: ignore
 def promoteProject(ack, body: dict[str, Any]):  # type: ignore
     ack()
-    try:
-        id = body["view"]["state"]["values"]["promote"]["projectPreviewSelector"][
-            "selected_option"
-        ]["value"]
-    except (KeyError, TypeError):
-        id = body["view"]["private_metadata"]
+    id = body["view"]["private_metadata"]
 
-    channel = body["view"]["state"]["values"]["promote"]["conversationSelector"][
-        "selected_conversation"
-    ]
+    # Channel id we need is double nested inside two dicts with random keys.
+    values = body["view"]["state"]["values"]
+    i: str = next(iter(values))
+    i2: str = next(iter(values[i]))
+    channel: str = values[i][i2]["selected_conversation"]
+
     title = getProject(id)["title"]
 
     # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
@@ -1179,9 +1167,7 @@ def projectSelected(ack, body: dict[str, Any], client: WebClient) -> None:  # ty
     # id = body["actions"][0]["selected_option"]["value"]
     view_id = body["container"]["view_id"]
     client.views_update(  # type: ignore
-        # Pass a valid trigger_id within 3 seconds of receiving it
         view_id=view_id,
-        # View payload
         view={
             "type": "modal",
             # View identifier
@@ -1203,9 +1189,7 @@ def editSpecificProject(ack, body: dict[str, Any], client: WebClient) -> None:  
 
     id = body["actions"][0]["value"]
     client.views_open(  # type: ignore
-        # Pass a valid trigger_id within 3 seconds of receiving it
         trigger_id=body["trigger_id"],
-        # View payload
         view={
             "type": "modal",
             "callback_id": "updateData",
@@ -1321,19 +1305,17 @@ def projectPreviewSelector(ack, body: dict[str, Any], client: WebClient) -> None
     """
     project = getProject(id)
     """
+
+    view = {
+        "title": {"type": "plain_text", "text": "Promote project", "emoji": True},
+        "submit": {"type": "plain_text", "text": "Promote!", "emoji": True},
+        "type": "modal",
+        "blocks": displayPromote(id=id),
+    }
+    # callback promoteProject
     client.views_update(  # type: ignore
-        # Pass a valid trigger_id within 3 seconds of receiving it
         view_id=view_id,
-        # View payload
-        view={
-            "type": "modal",
-            # View identifier
-            "callback_id": "promoteProject",
-            "title": {"type": "plain_text", "text": "Promote a pledge"},
-            "submit": {"type": "plain_text", "text": "Promote!"},
-            "blocks": displayPromote(id),
-            "private_metadata": id,
-        },
+        view=view,
     )
 
 
@@ -1342,7 +1324,6 @@ def promoteSpecificProject_entry(ack, body: dict[str, Any], client: WebClient) -
     ack()
     project_id: str = body["actions"][0]["value"]
     client.views_open(  # type: ignore
-        # Pass a valid trigger_id within 3 seconds of receiving it
         trigger_id=body["trigger_id"],
         # View payload
         view={
@@ -1361,12 +1342,9 @@ def promoteSpecificProject_entry(ack, body: dict[str, Any], client: WebClient) -
 def promoteFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     client.views_open(  # type: ignore
-        # Pass a valid trigger_id within 3 seconds of receiving it
         trigger_id=body["trigger_id"],
-        # View payload
         view={
             "type": "modal",
-            # View identifier
             "callback_id": "promoteProject",
             "title": {"type": "plain_text", "text": "Promote a pledge"},
             "submit": {"type": "plain_text", "text": "Promote!"},
@@ -1379,12 +1357,9 @@ def promoteFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # ty
 def updateFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     client.views_open(  # type: ignore
-        # Pass a valid trigger_id within 3 seconds of receiving it
         trigger_id=body["trigger_id"],
-        # View payload
         view={
             "type": "modal",
-            # View identifier
             "callback_id": "loadProject",
             "title": {"type": "plain_text", "text": "Select Project"},
             "submit": {"type": "plain_text", "text": "Update!"},
@@ -1401,9 +1376,7 @@ def createFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # typ
     while id in loadProjects().keys():
         id = "".join(random.choices(string.ascii_letters + string.digits, k=16))
     client.views_open(  # type: ignore
-        # Pass a valid trigger_id within 3 seconds of receiving it
         trigger_id=body["trigger_id"],
-        # View payload
         view={
             "type": "modal",
             # View identifier
@@ -1597,9 +1570,7 @@ def projectDetails(ack, body: dict[str, Any], client: WebClient) -> None:  # typ
     ack()
     id = body["actions"][0]["value"]
     client.views_open(  # type: ignore
-        # Pass a valid trigger_id within 3 seconds of receiving it
         trigger_id=body["trigger_id"],
-        # View payload
         view={
             "type": "modal",
             "title": {"type": "plain_text", "text": "Project Details"},

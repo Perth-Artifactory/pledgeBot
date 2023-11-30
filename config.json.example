@@ -10,5 +10,6 @@
   "admin_group": "SXXXXXXX",
   "admin_channel": "",
   "tax_info": "https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/gifts-and-donations",
-  "age_out_threshold": 14
+  "age_out_threshold": 14,
+  "default_promotion_channel": "CXXXXXXX"
 }
