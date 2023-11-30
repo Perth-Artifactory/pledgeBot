@@ -4,6 +4,7 @@ import json
 import random
 import string
 import time
+from datetime import datetime
 from pprint import pprint  # type: ignore # This has been left in for debugging purposes
 from typing import Any
 import utils.project_output
@@ -293,6 +294,12 @@ def check_if_old(
     return True
 
 
+def boolToEmoji(b: bool) -> str:
+    if b:
+        return ":white_check_mark:"
+    return ":x:"
+
+
 #####################
 # Display functions #
 #####################
@@ -419,6 +426,75 @@ def displayProject(id: str, bar: bool = True) -> list[dict[str, Any]]:
     return blocks
 
 
+def displayProjectDetails(id: str) -> list[dict[str, Any]]:
+    project = getProject(id)
+
+    currentp = 0
+    backers = 0
+    if "pledges" in project.keys():
+        for pledge in project["pledges"]:
+            backers += 1
+            currentp += int(project["pledges"][pledge])
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": format(project["title"]),
+                "emoji": True,
+            },
+        }
+    ]
+
+    fields: dict[str, str] = {}
+
+    # Approval
+    fields["Approved"] = boolToEmoji(project["approved"])
+    if project.get("approved", False) and project.get("approved at", False):
+        fields["Approved at"] = formatDate(
+            timestamp=project["approved at"], action="Approved at", raw=True
+        )
+
+    # Funding
+    fields["Funded"] = boolToEmoji(check_if_funded(project))
+    if check_if_funded(project) and project.get("funded at", False):
+        fields["Funded at"] = formatDate(
+            timestamp=project["funded at"], action="Funded at", raw=True
+        )
+
+    # Invoices sent
+    fields["Invoices sent"] = boolToEmoji(project.get("invoices_sent", False))
+    if project.get("invoices_sent", False):
+        fields["Invoices sent at"] = formatDate(
+            timestamp=project["invoices_sent"], action="Invoices sent at", raw=True
+        )
+
+    # DGR
+    fields["DGR"] = boolToEmoji(project["dgr"])
+
+    # Generate field block
+    field_blocks: list[dict[str, str | bool]] = []
+    for field in fields:
+        field_blocks.append(
+            {"type": "plain_text", "text": f"{field}: {fields[field]}", "emoji": True}
+        )
+
+    # Add to block list
+    blocks += [{"type": "section", "fields": field_blocks}]
+
+    # Specific pledges
+    blocks += displaySpacer()
+    blocks += displayHeader("Pledges:")
+    text = ""
+    for pledge in project["pledges"]:
+        text += f'• <@{pledge}>: ${project["pledges"][pledge]}\n'
+    text += f'\nTotal: ${currentp}/${project["total"]}\n'
+    blocks += [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
+
+    return blocks
+
+
 def displayApprove(id: str) -> list[dict[str, Any]]:
     blocks = [
         {
@@ -460,10 +536,9 @@ def displayAdminActions(id: str) -> list[dict[str, Any]]:
                     "type": "button",
                     "text": {
                         "type": "plain_text",
-                        "text": "Edit project",
+                        "text": "Edit",
                         "emoji": True,
                     },
-                    "style": "danger",
                     "value": id,
                     "action_id": "editSpecificProject",
                 },
@@ -471,7 +546,17 @@ def displayAdminActions(id: str) -> list[dict[str, Any]]:
                     "type": "button",
                     "text": {
                         "type": "plain_text",
-                        "text": "Unapprove project",
+                        "text": "Details",
+                        "emoji": True,
+                    },
+                    "value": id,
+                    "action_id": "projectDetails",
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Unapprove",
                         "emoji": True,
                     },
                     "value": id,
@@ -488,7 +573,7 @@ def displayAdminActions(id: str) -> list[dict[str, Any]]:
                     "type": "button",
                     "text": {
                         "type": "plain_text",
-                        "text": "Delete project",
+                        "text": "Delete",
                         "emoji": True,
                     },
                     "style": "danger",
@@ -673,6 +758,26 @@ def displayEditLoad(id: str | bool) -> list[dict[str, Any]]:
     return box
 
 
+def displayDetailButton(id: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Details",
+                        "emoji": True,
+                    },
+                    "value": id,
+                    "action_id": "projectDetails",
+                }
+            ],
+        }
+    ]
+
+
 def displaySpacer():
     return [{"type": "divider"}]
 
@@ -749,6 +854,13 @@ def createProgressBar(current: int | float, total: int, segments: int = 7) -> st
     return final_s
 
 
+def formatDate(timestamp: int, action: str, raw: bool = False) -> str:
+    if raw:
+        # Some fields do not accept Slack's date formatting
+        return f"{str(datetime.fromtimestamp(timestamp))}"
+    return f"<!date^{timestamp}^{action} {{date_pretty}}|{action} {str(datetime.fromtimestamp(timestamp))}>"
+
+
 def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
     projects = loadProjects()
 
@@ -774,6 +886,8 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
     for project in projects:
         if check_if_funded(id=project) and not check_if_old(id=project):
             blocks += displayProject(project, bar=False)
+            if auth(user=user, client=client):
+                blocks += displayDetailButton(id=project)
             blocks += displaySpacer()
 
     if auth(user=user, client=client):
@@ -1517,6 +1631,22 @@ def delete(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignor
     deleteProject(id)
 
     updateHome(user=user, client=client)
+
+
+@app.action("projectDetails")  # type: ignore
+def projectDetails(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+    ack()
+    id = body["actions"][0]["value"]
+    client.views_open(  # type: ignore
+        # Pass a valid trigger_id within 3 seconds of receiving it
+        trigger_id=body["trigger_id"],
+        # View payload
+        view={
+            "type": "modal",
+            "title": {"type": "plain_text", "text": "Project Details"},
+            "blocks": displayProjectDetails(id=id),
+        },
+    )
 
 
 @app.action("sendInvoices")  # type: ignore
