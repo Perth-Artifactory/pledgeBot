@@ -305,7 +305,7 @@ def boolToEmoji(b: bool) -> str:
 #####################
 
 
-def constructEdit(id: str):
+def constructEdit(id: str) -> list[dict[str, Any]]:
     project = getProject(id)
     if not project["img"]:
         project["img"] = ""
@@ -377,10 +377,14 @@ def constructEdit(id: str):
             },
         },
     ]
-    # Is this a new project? If so don't show the selection box
-    if project["desc"]:
-        editbox = displayEditLoad(id) + displaySpacer() + editbox
-    return editbox
+    # Deprecated selector to pick a project to edit
+    # if project["desc"]:
+    #    editbox = displayEditLoad(id) + displaySpacer() + editbox
+
+    # Add docs
+    blocks = editbox + displaySpacer() + displayHelp("create", raw=False)  # type: ignore # When raw is False the return is always a list
+
+    return blocks  # type: ignore
 
 
 def displayProject(id: str, bar: bool = True) -> list[dict[str, Any]]:
@@ -521,6 +525,27 @@ def displayApprove(id: str) -> list[dict[str, Any]]:
                     "value": id,
                     "action_id": "approve_as_dgr",
                 },
+            ],
+        }
+    ]
+    return blocks
+
+
+def displayCreate() -> list[dict[str, Any]]:
+    blocks = [
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Create a project",
+                        "emoji": True,
+                    },
+                    "value": "AppHome",
+                    "action_id": "createFromHome",
+                }
             ],
         }
     ]
@@ -776,7 +801,8 @@ def displayDetailButton(id: str) -> list[dict[str, Any]]:
             ],
         }
     ]
-    
+
+
 def displayPromoteButton(id: str) -> list[dict[str, Any]]:
     return [
         {
@@ -836,8 +862,13 @@ def displayPromote(id: str | bool = False) -> list[dict[str, Any]]:
             ],
         }
     ]
-    if id:
-        pass
+    if id and type(id) == str and type(blocks[0]["block_id"]) == str:
+        # Remove the project selector
+        del blocks[0]["elements"][1]  # type: ignore
+
+    help = displayHelp("promote", raw=False)
+    if type(help) == list:
+        blocks += help
     return blocks
 
 
@@ -883,8 +914,8 @@ def formatDate(timestamp: int, action: str, raw: bool = False) -> str:
 def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
     projects = loadProjects()
 
-    blocks: list[dict[str,Any]] = []
-    
+    blocks: list[dict[str, Any]] = []
+
     # Let admins know that they're seeing extra stuff on this page
     if auth(user=user, client=client):
         blocks += [
@@ -907,7 +938,7 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
             },
         }
     ]
-        
+
     for project in projects:
         if projects[project].get("approved", False) and not check_if_funded(id=project):
             blocks += displayProject(project)
@@ -926,12 +957,21 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
             blocks += displaySpacer()
 
     if auth(user=user, client=client):
-        blocks += displayHeader("Projects awaiting approval")
+        not_yet_approved: list[str] = []
         for project in projects:
             if not projects[project].get("approved", False):
+                not_yet_approved.append(project)
+
+        blocks += displayHeader("Projects awaiting approval")
+
+        if len(not_yet_approved) > 0:
+            for project in not_yet_approved:
                 blocks += displayProject(project)
                 blocks += displayApprove(project)
                 blocks += displaySpacer()
+
+        else:
+            blocks += displayHelp("no_projects_in_queue", raw=False)  # type: ignore # When raw is False the return is always a list
     else:
         not_yet_approved: list[str] = []
         for project in projects:
@@ -949,7 +989,7 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
                     "elements": [
                         {
                             "type": "plain_text",
-                            "text": f'These are projects you have created that haven\'t been approved yet. Press the "Request approval" button once your project is ready to go.',
+                            "text": str(displayHelp("personal_unapproved", raw=True)),
                             "emoji": True,
                         }
                     ],
@@ -980,13 +1020,54 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
                                 },
                                 "value": project,
                                 "style": "primary",
+                                "confirm": displayConfirm(
+                                    title="Request Approval",
+                                    text=str(displayHelp("approval", raw=True)),
+                                    confirm="Request approval",
+                                    abort="Cancel",
+                                ),
                                 "action_id": "requestProjectApproval",
                             },
                         ],
                     }
                 ]
                 blocks += displaySpacer()
-    return blocks
+    return blocks  # type: ignore # Every instance of displayHelp used in this function returns a list
+
+
+def displayHelp(article: str, raw: bool = False) -> str | list[dict[str, Any]]:
+    articles: dict[str, str] = {}
+    articles[
+        "create_CTA"
+    ] = "Our space is entirely community driven. If you have an idea for a project that would benefit the space you can create it here."
+    articles[
+        "create"
+    ] = """The most successful projects tend to include the following things:
+    • A useful title
+    • A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.
+    • A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.
+    
+    Once your project has been created it will need to be approved before people can donate to it. You can trigger the approval process by pressing the request button attached to your project."""
+    articles[
+        "approval"
+    ] = "Once your project has been approved you won't be able to edit it. If you need to make changes after this point you'll need to ask a committee member to perform them on your behalf."
+    articles[
+        "promote"
+    ] = """This will share the project to a public channel of your choosing.
+    For channels dedicated to a particular project you could pin the message as an easy way of reminding people that they can donate.
+    We also suggest actively talking about your project in the most relevant channel. eg, If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to generate hype."""
+    articles[
+        "personal_unapproved"
+    ] = 'These are projects you have created that haven\'t been approved yet. Press the "Request approval" button once your project is ready to go.'
+    articles["no_projects_in_queue"] = "There are no projects awaiting approval."
+
+    if article not in articles.keys():
+        articles[article] = " "
+
+    if raw:
+        return articles[article]
+
+    return [{"type": "section", "text": {"type": "mrkdwn", "text": articles[article]}}]
 
 
 ######################
@@ -997,170 +1078,13 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
 
 app = App(token=config["SLACK_BOT_TOKEN"])
 
-### slash commands ###
-
-
-@app.command("/pledge")  # type: ignore
-def entryPoints(ack, command: dict[str, Any], client, body: dict[str, Any]) -> None:  # type: ignore
-    ack()
-    # Did the user provide a command?
-    if command["text"] != "":
-        command: str = command["text"].split(" ")[0].lower()
-    else:
-        pass
-        # Some help text
-
-    if command == "create":
-        # pick a new id
-        id = "".join(random.choices(string.ascii_letters + string.digits, k=16))
-        while id in loadProjects().keys():
-            id = "".join(random.choices(string.ascii_letters + string.digits, k=16))
-        client.views_open(  # type: ignore
-            # Pass a valid trigger_id within 3 seconds of receiving it
-            trigger_id=body["trigger_id"],
-            # View payload
-            view={
-                "type": "modal",
-                # View identifier
-                "callback_id": "updateData",
-                "title": {"type": "plain_text", "text": "Create a pledge"},
-                "submit": {"type": "plain_text", "text": "Create!"},
-                "private_metadata": id,
-                "blocks": constructEdit(id=id),
-            },
-        )
-
-    elif command == "update":
-        client.views_open(  # type: ignore
-            # Pass a valid trigger_id within 3 seconds of receiving it
-            trigger_id=body["trigger_id"],
-            # View payload
-            view={
-                "type": "modal",
-                # View identifier
-                "callback_id": "loadProject",
-                "title": {"type": "plain_text", "text": "Select Project"},
-                "submit": {"type": "plain_text", "text": "Update!"},
-                "blocks": displayEditLoad(id=False),
-            },
-        )
-
-    elif command == "promote":
-        client.views_open(  # type: ignore
-            # Pass a valid trigger_id within 3 seconds of receiving it
-            trigger_id=body["trigger_id"],
-            # View payload
-            view={
-                "type": "modal",
-                # View identifier
-                "callback_id": "promoteProject",
-                "title": {"type": "plain_text", "text": "Promote a pledge"},
-                "submit": {"type": "plain_text", "text": "Promote!"},
-                "blocks": displayPromote(id=False),
-            },
-        )
-
-    else:
-        pass
-        # Some help text, pointing out that the command wasn't recognised
-
-
 ### Actions ###
 
 
 def updateHome(user: str, client: WebClient) -> None:
-    docs = [
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": "How to create a project",
-                "emoji": True,
-            },
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "You can either create a new project using `/pledge create` or by using the button here.\nThe most successful projects tend to include the following things:\n - A useful title\n - A description that explains what the project is and why it would benefit the space. Instead of going into the minutiae provide a slack channel or wiki url where users can find more info for themselves.\n - A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.\n\nOnce your project has been created it will need to be approved before people can donate to it. You can trigger the approval process by pressing the request button attached to your project.",
-            },
-            "accessory": {
-                "type": "button",
-                "text": {
-                    "type": "plain_text",
-                    "text": "Create a project",
-                    "emoji": True,
-                },
-                "value": "AppHome",
-                "action_id": "createFromHome",
-            },
-        },
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": "How to update a project",
-                "emoji": True,
-            },
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "You can either update a project using `/pledge update` or by using the button here.\n Once your project has been approved you won't be able to edit it. If you need to make changes after this point you'll need to ask a committee member to perform them on your behalf.",
-            },
-            "accessory": {
-                "type": "button",
-                "text": {
-                    "type": "plain_text",
-                    "text": "Update a project",
-                    "emoji": True,
-                },
-                "value": "AppHome",
-                "action_id": "updateFromHome",
-            },
-        },
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": "How to promote a project",
-                "emoji": True,
-            },
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "You can either update a project using `/pledge promote` or by using the buttons next to each project listed above.\n\n pledgeBot will post a promotional message in a public channel of your choosing. For channels dedicated to a particular project you could pin the promotional message as an easy way of reminding people that they can donate.\nBeyond the technical functions we suggest actively talking about your project in the most relevant channel. eg, If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to start.",
-            },
-            "accessory": {
-                "type": "button",
-                "text": {
-                    "type": "plain_text",
-                    "text": "Promote a project",
-                    "emoji": True,
-                },
-                "value": "AppHome",
-                "action_id": "promoteFromHome",
-            },
-        },
-        {
-            "type": "header",
-            "text": {"type": "plain_text", "text": "Further help", "emoji": True},
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "If you want help workshopping a proposal the folks in <#CFWCKULHY> are a good choice. Alternatively if you reach out to a committee member they'll put you in contact with someone that has a pretty good idea of what's going on in the space.\nMoney questions should be directed to <!subteam^S01D6D2T485> \nIf you're having trouble with the pledge system itself chat with <@UC6T4U150> or raise an issue on <https://github.com/Perth-Artifactory/pledgeBot/issues|GitHub>.",
-            },
-        },
-    ]
-
-    home_view = {
+    home_view = {  # type: ignore # When raw is False the return is always a list
         "type": "home",
-        "blocks": displayHomeProjects(client=client, user=user) + docs,
+        "blocks": displayHomeProjects(client=client, user=user) + displayHeader("How to create a project") + displayHelp("create_CTA", raw=False) + displayCreate(),  # type: ignore # When raw is False the return is always a list
     }
 
     client.views_publish(user_id=user, view=home_view)  # type: ignore
@@ -1226,7 +1150,7 @@ def promoteProject(ack, body: dict[str, Any]):  # type: ignore
         id = body["view"]["state"]["values"]["promote"]["projectPreviewSelector"][
             "selected_option"
         ]["value"]
-    except TypeError:
+    except (KeyError, TypeError):
         id = body["view"]["private_metadata"]
 
     channel = body["view"]["state"]["values"]["promote"]["conversationSelector"][
@@ -1267,7 +1191,7 @@ def projectSelected(ack, body: dict[str, Any], client: WebClient) -> None:  # ty
                 "text": "Update Project",
             },  # project["title"]
             "submit": {"type": "plain_text", "text": "Update!"},
-            "blocks": constructEdit(id),
+            "blocks": constructEdit(id=id),
             "private_metadata": id,
         },
     )
@@ -1290,7 +1214,7 @@ def editSpecificProject(ack, body: dict[str, Any], client: WebClient) -> None:  
                 "text": "Update Project",
             },
             "submit": {"type": "plain_text", "text": "Update!"},
-            "blocks": constructEdit(id),
+            "blocks": constructEdit(id=id),
             "private_metadata": id,
         },
     )
