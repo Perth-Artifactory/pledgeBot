@@ -462,7 +462,7 @@ def displayDonate(id: str, user: str|None = None, home: bool = False):
         blocks = [
             {
                 "dispatch_action": True,
-                "block_id": id,
+                "block_id": slackIdShuffle(id),
                 "type": "input",
                 "element": {
                     "type": "plain_text_input",
@@ -1092,7 +1092,7 @@ def donateRest(ack, body: dict[str,Any], respond) -> None: # type: ignore
 def donateAmount(ack, body: dict[str,Any], respond, say) -> None: # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = body["actions"][0]["block_id"]
+    id = slackIdShuffle(field = body["actions"][0]["block_id"], r = True)
     amount: str = body["actions"][0]["value"]
     if checkBadCurrency(amount):
         respond(
@@ -1138,7 +1138,7 @@ def donateRest_home(ack, body: dict[str,Any], client: WebClient) -> None: # type
 def donateAmount_home(ack, body: dict[str,Any], client: WebClient, say) -> None: # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = body["actions"][0]["block_id"]
+    id: str = slackIdShuffle(field = body["actions"][0]["block_id"], r = True)
     amount: str = body["actions"][0]["value"]
     if checkBadCurrency(amount):
         say(text=checkBadCurrency(amount), channel=user)
