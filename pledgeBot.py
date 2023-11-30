@@ -776,6 +776,25 @@ def displayDetailButton(id: str) -> list[dict[str, Any]]:
             ],
         }
     ]
+    
+def displayPromoteButton(id: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Promote",
+                        "emoji": True,
+                    },
+                    "value": id,
+                    "action_id": "promoteSpecificProject_entry",
+                }
+            ],
+        }
+    ]
 
 
 def displaySpacer():
@@ -864,7 +883,21 @@ def formatDate(timestamp: int, action: str, raw: bool = False) -> str:
 def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
     projects = loadProjects()
 
-    blocks = displayHeader("Projects seeking donations")
+    blocks: list[dict[str,Any]] = []
+    
+    # Let admins know that they're seeing extra stuff on this page
+    if auth(user=user, client=client):
+        blocks += [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f':warning: As a member of <!subteam^{config["admin_group"]}> you have some extra options available to you. Please use them responsibly and assume that *donor information is confidential* unless the donor has explicitly stated otherwise.',
+                },
+            }
+        ]
+
+    blocks += displayHeader("Projects seeking donations")
     blocks += [
         {
             "type": "section",
@@ -874,10 +907,12 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
             },
         }
     ]
+        
     for project in projects:
         if projects[project].get("approved", False) and not check_if_funded(id=project):
             blocks += displayProject(project)
             blocks += displayDonate(project, user=user, home=True)
+            blocks += displayPromoteButton(id=project)
             if auth(user=user, client=client):
                 blocks += displayAdminActions(project)
             blocks += displaySpacer()
