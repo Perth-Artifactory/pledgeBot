@@ -475,7 +475,7 @@ def displayProjectDetails(id: str) -> list[dict[str, Any]]:
         )
 
     # DGR
-    fields["DGR"] = boolToEmoji(project["dgr"])
+    fields["DGR"] = boolToEmoji(project.get("dgr", False))
 
     # Generate field block
     field_blocks: list[dict[str, str | bool]] = []
