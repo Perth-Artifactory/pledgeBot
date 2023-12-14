@@ -58,7 +58,7 @@ def send_invoices(p: dict[str, Any], module: bool = False) -> None:
         admin_suffix = "\nThese invoices have **not** been marked as tax deductible."
         category: int = int(config["tidyhq_project_category"])
 
-    admin_notifaction: str = f'Invoices for {p["title"]} have been created: '
+    admin_notification: str = f'Invoices for {p["title"]} have been created: '
     sent_total = 0
 
     for pledge in p["pledges"]:
@@ -82,7 +82,7 @@ def send_invoices(p: dict[str, Any], module: bool = False) -> None:
         print(
             f'${invoice["amount"]} invoice created for {members[pledge][0]} (https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}))'
         )
-        admin_notifaction += f'\n• ${invoice["amount"]} for <@{members[pledge][1]}> - <https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}|{invoice["id"]}>'
+        admin_notification += f'\n• ${invoice["amount"]} for <@{members[pledge][1]}> - <https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}|{invoice["id"]}>'
         sent_total += int(invoice["amount"])
 
         # Open a slack conversation with the donor and get the channel ID
@@ -113,16 +113,16 @@ def send_invoices(p: dict[str, Any], module: bool = False) -> None:
 
     # Send invoice creation details to the admin channel
 
-    admin_notifaction += f'\n\nProject goal: ${p["total"]}'
-    admin_notifaction += f"\nTotal sent: ${sent_total}"
-    admin_notifaction += admin_suffix
-    admin_notifaction += f'\n\nA notification has also been sent to <@{p["created by"]}> as the project creator. They\'ve been asked to contact the Treasurer for the next steps.'
+    admin_notification += f'\n\nProject goal: ${p["total"]}'
+    admin_notification += f"\nTotal sent: ${sent_total}"
+    admin_notification += admin_suffix
+    admin_notification += f'\n\nA notification has also been sent to <@{p["created by"]}> as the project creator. They\'ve been asked to contact the Treasurer for the next steps.'
 
     # If we're running as a module, return the admin notification rather than posting it to slack
     if module:
-        return admin_notifaction
+        return admin_notification
     
-    invoice_slack_app.client.chat_postMessage(channel=str(config["admin_channel"]), text=admin_notifaction) # type: ignore
+    invoice_slack_app.client.chat_postMessage(channel=str(config["admin_channel"]), text=admin_notification) # type: ignore
     
     return "Success: Invoices sent."
 
