@@ -110,6 +110,18 @@ def unapproveProject(id: str) -> None:
     writeProject(id, project, user=False)
 
 
+def logPromotion(id: str, slack_response: SlackResponse) -> None:
+    project = getProject(id)
+    if "promotions" not in project.keys():
+        project["promotions"] = []
+    # Construct tuple of channel and timestamp
+    promotion: list[str] = [slack_response["channel"], slack_response["ts"]]  # type: ignore
+    project["promotions"].append( # type: ignore
+        {"channel": slack_response["channel"], "ts": slack_response["ts"]}
+    )
+    writeProject(id, project, user=False)
+
+
 def deleteProject(id: str) -> None:
     projects = loadProjects()
     del projects[id]
@@ -183,8 +195,24 @@ def pledge(
         project["funded at"] = int(time.time())
         writeProject(id, project, user=False)
 
-    # Send back an updated project block
+    # Update all promotions
+    message_blocks = displayProject(id) + displaySpacer() + displayDonate(id)
+    for promotion in project.get("promotions",[]):
+        app.client.chat_update( # type: ignore
+            channel=promotion["channel"],
+            ts=promotion["ts"],
+            blocks=message_blocks,
+            text="A project was donated to")
 
+    # Update app home of donor first so they see the updated pledge faster
+    updateHome(user=user, client=app.client)
+
+    # Update app homes of all donors
+    for donor in project.get("pledges",{}):
+        if donor != user:
+            updateHome(user = donor, client = app.client)
+
+    # Send back an updated project block
     return displayProject(id) + displaySpacer() + displayDonate(id)
 
 
@@ -476,12 +504,19 @@ def displayProjectDetails(id: str) -> list[dict[str, Any]]:
 
     # DGR
     fields["DGR"] = boolToEmoji(project.get("dgr", False))
+    
+    # Promoted to
+    if project.get("promotions", False):
+        channels = ""
+        for promotion in project["promotions"]:
+            channels += f'<#{promotion["channel"]}> '
+        fields["Promotions"] = channels
 
     # Generate field block
     field_blocks: list[dict[str, str | bool]] = []
     for field in fields:
         field_blocks.append(
-            {"type": "plain_text", "text": f"{field}: {fields[field]}", "emoji": True}
+            {"type": "mrkdwn", "text": f"{field}: {fields[field]}"}
         )
 
     # Add to block list
@@ -1151,11 +1186,14 @@ def promoteProject(ack, body: dict[str, Any]):  # type: ignore
         channel=channel,
         text=f'<@{body["user"]["id"]}> has promoted a project, check it out!',
     )
-    app.client.chat_postMessage(  # type: ignore
+    promo_msg = app.client.chat_postMessage(  # type: ignore
         channel=channel,
         blocks=displayProject(id) + displaySpacer() + displayDonate(id),
         text=f"Check out our fundraiser for: {title}",
     )
+
+    # Log this promotion message
+    logPromotion(id=id, slack_response=promo_msg)
 
 
 @app.action("projectSelector")  # type: ignore
@@ -1208,31 +1246,31 @@ def editSpecificProject(ack, body: dict[str, Any], client: WebClient) -> None:  
 
 
 @app.action("donate10")  # type: ignore
-def donate10(ack, body: dict[str, Any], respond) -> None:  # type: ignore
+def donate10(ack, body: dict[str, Any]) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
     id: str = body["actions"][0]["value"]
-    respond(blocks=pledge(id, 10, user, percentage=True))
+    pledge(id, 10, user, percentage=True)
 
 
 @app.action("donate20")  # type: ignore
-def donate20(ack, body: dict[str, Any], respond) -> None:  # type: ignore
+def donate20(ack, body: dict[str, Any]) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
     id: str = body["actions"][0]["value"]
-    respond(blocks=pledge(id, 20, user, percentage=True))
+    pledge(id, 20, user, percentage=True)
 
 
 @app.action("donateRest")  # type: ignore
-def donateRest(ack, body: dict[str, Any], respond) -> None:  # type: ignore
+def donateRest(ack, body: dict[str, Any]) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
     id: str = body["actions"][0]["value"]
-    respond(blocks=pledge(id, "remaining", user))
+    pledge(id, "remaining", user)
 
 
 @app.action("donateAmount")  # type: ignore
-def donateAmount(ack, body: dict[str, Any], respond, say) -> None:  # type: ignore
+def donateAmount(ack, body: dict[str, Any], respond) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
     id = slackIdShuffle(field=body["actions"][0]["block_id"], r=True)
@@ -1244,7 +1282,7 @@ def donateAmount(ack, body: dict[str, Any], respond, say) -> None:  # type: igno
             response_type="ephemeral",
         )
     else:
-        respond(blocks=pledge(id, amount, user))
+        pledge(id, amount, user)
 
 
 # Donate buttons with home update
@@ -1256,7 +1294,6 @@ def donate10_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type
     user: str = body["user"]["id"]
     id: str = body["actions"][0]["value"]
     pledge(id, 10, user, percentage=True)
-    updateHome(user=user, client=client)
 
 
 @app.action("donate20_home")  # type: ignore
@@ -1265,7 +1302,6 @@ def donate20_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type
     user: str = body["user"]["id"]
     id: str = body["actions"][0]["value"]
     pledge(id, 20, user, percentage=True)
-    updateHome(user=user, client=client)
 
 
 @app.action("donateRest_home")  # type: ignore
@@ -1274,7 +1310,6 @@ def donateRest_home(ack, body: dict[str, Any], client: WebClient) -> None:  # ty
     user: str = body["user"]["id"]
     id: str = body["actions"][0]["value"]
     pledge(id, "remaining", user)
-    updateHome(user=user, client=client)
 
 
 @app.action("donateAmount_home")  # type: ignore
@@ -1287,7 +1322,6 @@ def donateAmount_home(ack, body: dict[str, Any], client: WebClient, say) -> None
         say(text=checkBadCurrency(amount), channel=user)
     else:
         pledge(id, amount, user)
-        updateHome(user=user, client=client)
 
 
 @app.action("conversationSelector")  # type: ignore
