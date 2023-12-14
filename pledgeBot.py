@@ -1638,9 +1638,14 @@ def invoice(ack, body: dict[str, Any], client: WebClient) -> None:  # type: igno
         reply = body["container"]["message_ts"]
 
         # Store the generate invoice button in case we need to re-add it
-        button = body["message"]["blocks"][-1]
-        # Take out the button
-        blocks: list[dict[str, Any]] = body["message"]["blocks"][:-1]
+        blocks: list[dict[str, Any]] = body["message"]["blocks"]
+        # Check for accessory button in the last block
+        if "accessory" in blocks[-1].keys():
+            button = blocks[-1]["accessory"]
+            # Remove just the accessory
+            blocks[-1].pop("accessory")
+        # Strip newlines from the text field in the last block
+        blocks[-1]["text"]["text"] = blocks[-1]["text"]["text"].replace("\n", "")
         blocks += [
             {
                 "type": "context",
@@ -1672,7 +1677,7 @@ def invoice(ack, body: dict[str, Any], client: WebClient) -> None:  # type: igno
     if body["container"]["type"] == "message":
         # If we weren't successful, add the button back at the bottom
         if not sent:
-            blocks += [button]
+            blocks[0]['accessory'] = button # type: ignore
 
             app.client.chat_update(  # type: ignore
                 channel=body["container"]["channel_id"],
