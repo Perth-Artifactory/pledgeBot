@@ -82,7 +82,7 @@ def send_invoices(p: dict[str, Any], module: bool = False) -> None:
         print(
             f'${invoice["amount"]} invoice created for {members[pledge][0]} (https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}))'
         )
-        admin_notifaction += f'\n* ${invoice["amount"]} for <@{members[pledge][1]}> - <https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}|{invoice["id"]}>'
+        admin_notifaction += f'\n• ${invoice["amount"]} for <@{members[pledge][1]}> - <https://{domain}.tidyhq.com/finances/invoices/{invoice["id"]}|{invoice["id"]}>'
         sent_total += int(invoice["amount"])
 
         # Open a slack conversation with the donor and get the channel ID
