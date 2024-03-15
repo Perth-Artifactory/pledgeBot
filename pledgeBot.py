@@ -116,7 +116,7 @@ def logPromotion(id: str, slack_response: SlackResponse) -> None:
         project["promotions"] = []
     # Construct tuple of channel and timestamp
     promotion: list[str] = [slack_response["channel"], slack_response["ts"]]  # type: ignore
-    project["promotions"].append( # type: ignore
+    project["promotions"].append(  # type: ignore
         {"channel": slack_response["channel"], "ts": slack_response["ts"]}
     )
     writeProject(id, project, user=False)
@@ -197,20 +197,21 @@ def pledge(
 
     # Update all promotions
     message_blocks = displayProject(id) + displaySpacer() + displayDonate(id)
-    for promotion in project.get("promotions",[]):
-        app.client.chat_update( # type: ignore
+    for promotion in project.get("promotions", []):
+        app.client.chat_update(  # type: ignore
             channel=promotion["channel"],
             ts=promotion["ts"],
             blocks=message_blocks,
-            text="A project was donated to")
+            text="A project was donated to",
+        )
 
     # Update app home of donor first so they see the updated pledge faster
     updateHome(user=user, client=app.client)
 
     # Update app homes of all donors
-    for donor in project.get("pledges",{}):
+    for donor in project.get("pledges", {}):
         if donor != user:
-            updateHome(user = donor, client = app.client)
+            updateHome(user=donor, client=app.client)
 
     # Send back an updated project block
     return displayProject(id) + displaySpacer() + displayDonate(id)
@@ -502,9 +503,16 @@ def displayProjectDetails(id: str) -> list[dict[str, Any]]:
             timestamp=project["invoices_sent"], action="Invoices sent at", raw=True
         )
 
+    # Reconciled
+    fields["Reconciled"] = boolToEmoji(project.get("reconciled at", False))
+    if project.get("reconciled at", False):
+        fields["Reconciled at"] = formatDate(
+            timestamp=project["reconciled at"], action="Reconciled at", raw=True
+        )
+
     # DGR
     fields["DGR"] = boolToEmoji(project.get("dgr", False))
-    
+
     # Promoted to
     if project.get("promotions", False):
         channels = ""
@@ -515,9 +523,7 @@ def displayProjectDetails(id: str) -> list[dict[str, Any]]:
     # Generate field block
     field_blocks: list[dict[str, str | bool]] = []
     for field in fields:
-        field_blocks.append(
-            {"type": "mrkdwn", "text": f"{field}: {fields[field]}"}
-        )
+        field_blocks.append({"type": "mrkdwn", "text": f"{field}: {fields[field]}"})
 
     # Add to block list
     blocks += [{"type": "section", "fields": field_blocks}]
@@ -1060,9 +1066,9 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
 
 def displayHelp(article: str, raw: bool = False) -> str | list[dict[str, Any]]:
     articles: dict[str, str] = {}
-    articles[
-        "create_CTA"
-    ] = "Our space is entirely community driven. If you have an idea for a project that would benefit the space you can create it here."
+    articles["create_CTA"] = (
+        "Our space is entirely community driven. If you have an idea for a project that would benefit the space you can create it here."
+    )
     articles[
         "create"
     ] = """The most successful projects tend to include the following things:
@@ -1071,9 +1077,9 @@ def displayHelp(article: str, raw: bool = False) -> str | list[dict[str, Any]]:
     • A pretty picture. Remember pictures are typically displayed quite small so use them as an attraction rather than a method to convey detailed information. If you opt not to include an image we'll use a placeholder :artifactory2: instead.
     
     Once your project has been created it will need to be approved before people can donate to it. You can trigger the approval process by pressing the request button attached to your project."""
-    articles[
-        "approval"
-    ] = "Once your project has been approved you won't be able to edit it. If you need to make changes after this point you'll need to ask a committee member to perform them on your behalf."
+    articles["approval"] = (
+        "Once your project has been approved you won't be able to edit it. If you need to make changes after this point you'll need to ask a committee member to perform them on your behalf."
+    )
     articles[
         "promote"
     ] = """This will share the project to a public channel of your choosing.
@@ -1081,9 +1087,9 @@ def displayHelp(article: str, raw: bool = False) -> str | list[dict[str, Any]]:
 For channels dedicated to a particular project you could pin the message as an easy way of reminding people that they can donate.
     
 We also suggest actively talking about your project in the most relevant channel. eg, If you want to purchase a new 3D printer then <#CG05N75DZ> would be the best place to generate hype."""
-    articles[
-        "personal_unapproved"
-    ] = 'These are projects you have created that haven\'t been approved yet. Press the "Request approval" button once your project is ready to go.'
+    articles["personal_unapproved"] = (
+        'These are projects you have created that haven\'t been approved yet. Press the "Request approval" button once your project is ready to go.'
+    )
     articles["no_projects_in_queue"] = "There are no projects awaiting approval."
 
     if article not in articles.keys():
@@ -1677,7 +1683,7 @@ def invoice(ack, body: dict[str, Any], client: WebClient) -> None:  # type: igno
     if body["container"]["type"] == "message":
         # If we weren't successful, add the button back at the bottom
         if not sent:
-            blocks[0]['accessory'] = button # type: ignore
+            blocks[0]["accessory"] = button  # type: ignore
 
             app.client.chat_update(  # type: ignore
                 channel=body["container"]["channel_id"],
