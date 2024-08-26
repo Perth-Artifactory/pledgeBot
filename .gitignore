@@ -2,3 +2,4 @@ tidyslack.json
 projects.json
 config.json
 *.pyc
+report.csv
