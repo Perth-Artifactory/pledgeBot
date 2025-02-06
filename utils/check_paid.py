@@ -9,10 +9,8 @@ import sys
 def check_paid(project):
     # Get the expected invoice category and name based on dgr status
     if project.get("dgr", False):
-        category = config["tidyhq_dgr_category"]
         invoice_name = f"Gift/Donation for: {project['title']}"
     else:
-        category = config["tidyhq_project_category"]
         invoice_name = f"Project pledge: {project['title']}"
 
     # reverse the list so that the most recent invoices are first
@@ -68,9 +66,8 @@ def check_paid(project):
 
 # Get command line arguments
 include_unpaid = False
-if len(sys.argv) > 1:
-    if "--include-unpaid" in sys.argv:
-        include_unpaid = True
+if "--include-unpaid" in sys.argv:
+    include_unpaid = True
 
 # load config file
 with open("config.json", "r") as f:
@@ -87,14 +84,14 @@ invoice_slack_app = App(token=str(config["SLACK_BOT_TOKEN"]))
 # Get all recent invoices from TidyHQ
 
 r = requests.get(
-    f"https://api.tidyhq.com/v1/invoices",
+    "https://api.tidyhq.com/v1/invoices",
     params={"access_token": str(config["tidyhq_token"])},
 )
 all_invoices = r.json()[::-1]
 
 # Get a list of TidyHQ contacts
 r = requests.get(
-    f"https://api.tidyhq.com/v1/contacts",
+    "https://api.tidyhq.com/v1/contacts",
     params={"access_token": str(config["tidyhq_token"])},
 )
 
@@ -104,7 +101,7 @@ contacts = {contact["id"]: contact for contact in contacts_raw}
 
 # Get domain to construct links
 r = requests.get(
-    f"https://api.tidyhq.com/v1/organization",
+    "https://api.tidyhq.com/v1/organization",
     params={"access_token": str(config["tidyhq_token"])},
 )
 

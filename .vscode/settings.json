@@ -1,6 +1,11 @@
 {
     "cSpell.words": [
-        "tidyhq"
+        "LQBEQ",
+        "subteam",
+        "tidyhq",
+        "tidyslack",
+        "unapprove",
+        "usergroups"
     ],
     "sonarlint.connectedMode.project": {
         "connectionId": "https-sq-artifactory-org-au",

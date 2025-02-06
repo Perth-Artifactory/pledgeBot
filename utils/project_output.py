@@ -16,7 +16,7 @@ from slack_sdk.web.slack_response import SlackResponse
 
 
 # Load projects
-def loadProjects() -> dict[str, dict[str, Any]]:
+def load_projects() -> dict[str, dict[str, Any]]:
     with open("./projects.json", "r") as f:
         return json.load(f)
 
@@ -31,7 +31,7 @@ def lookup(id: str) -> tuple[str, str, int]:
     return members[id]
 
 
-def send_invoices(p: dict[str, Any], module: bool = False) -> None:
+def send_invoices(p: dict[str, Any], module: bool = False) -> str:
 
     # Check if project has already been processed
     if "invoices_sent" in p.keys():
@@ -131,12 +131,12 @@ def send_invoices(p: dict[str, Any], module: bool = False) -> None:
     return "Success: Invoices sent."
 
 
-def loadConfig() -> dict[str, str | int]:
+def load_config() -> dict[str, str | int]:
     with open("config.json", "r") as f:
         return json.load(f)
 
 
-def updateUsers() -> dict[str, tuple[str, str, int]]:
+def update_users() -> dict[str, tuple[str, str, int]]:
     global members
     # Populate users from file
     try:
@@ -180,7 +180,7 @@ def updateUsers() -> dict[str, tuple[str, str, int]]:
 
 def send_invoices_lib(id: str) -> str:
     # Load projects
-    projects = loadProjects()
+    projects = load_projects()
 
     # Check if project exists
 
@@ -192,7 +192,7 @@ def send_invoices_lib(id: str) -> str:
     invoice_slack_app = App(token=str(config["SLACK_BOT_TOKEN"]))
 
     # Get users
-    updateUsers()
+    update_users()
 
     outcome = send_invoices(projects[id], module=True)
 
@@ -208,7 +208,7 @@ def send_invoices_lib(id: str) -> str:
 # Get info that isn't expected to change while the script is running.
 
 # Load config
-config = loadConfig()
+config = load_config()
 
 # Get org name for URLs.
 domain: str = requests.get(
@@ -221,9 +221,9 @@ if __name__ == "__main__":
     app = App(token=str(config["SLACK_BOT_TOKEN"]))
 
     # Get users
-    updateUsers()
+    update_users()
 
-    projects = loadProjects()
+    projects = load_projects()
 
     for project in projects:
         p: dict[str, Any] = projects[project]

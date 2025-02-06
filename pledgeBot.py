@@ -25,14 +25,14 @@ with open("config.json", "r") as f:
 
 
 # Load projects
-def loadProjects():
+def load_projects():
     with open("projects.json", "r") as f:
         return json.load(f)
 
 
-# Update project, data should be an entire project initially pulled with getProject
-def writeProject(id: str, data: dict[str, Any], user: str | bool):
-    projects = loadProjects()
+# Update project, data should be an entire project initially pulled with get_project
+def write_project(id: str, data: dict[str, Any], user: str | bool):
+    projects = load_projects()
     if id not in projects.keys():
         data["created by"] = user
         data["created at"] = int(time.time())
@@ -64,7 +64,7 @@ def writeProject(id: str, data: dict[str, Any], user: str | bool):
             app.client.chat_postMessage(  # type: ignore
                 channel=config["admin_channel"],
                 thread_ts=reply["ts"],  # type: ignore
-                text=f"Old:\n```{json.dumps(loadProjects()[id], indent=4, sort_keys=True)}```",
+                text=f"Old:\n```{json.dumps(load_projects()[id], indent=4, sort_keys=True)}```",
             )
 
             app.client.chat_postMessage(  # type: ignore
@@ -90,8 +90,8 @@ def writeProject(id: str, data: dict[str, Any], user: str | bool):
             json.dump(projects, f, indent=4, sort_keys=True)
 
 
-def getProject(id: str) -> dict[str, Any]:
-    projects = loadProjects()
+def get_project(id: str) -> dict[str, Any]:
+    projects = load_projects()
     if id in projects.keys():
         return projects[id]
     else:
@@ -104,32 +104,30 @@ def getProject(id: str) -> dict[str, Any]:
         }
 
 
-def unapproveProject(id: str) -> None:
-    project = getProject(id)
+def unapprove_project(id: str) -> None:
+    project = get_project(id)
     project["approved"] = False
-    writeProject(id, project, user=False)
+    write_project(id, project, user=False)
 
 
-def logPromotion(id: str, slack_response: SlackResponse) -> None:
-    project = getProject(id)
+def log_promotion(project_id: str, slack_response: SlackResponse) -> None:
+    project = get_project(project_id)
     if "promotions" not in project.keys():
         project["promotions"] = []
-    # Construct tuple of channel and timestamp
-    promotion: list[str] = [slack_response["channel"], slack_response["ts"]]  # type: ignore
     project["promotions"].append(  # type: ignore
         {"channel": slack_response["channel"], "ts": slack_response["ts"]}
     )
-    writeProject(id, project, user=False)
+    write_project(project_id, project, user=False)
 
 
-def deleteProject(id: str) -> None:
-    projects = loadProjects()
+def delete_project(id: str) -> None:
+    projects = load_projects()
     del projects[id]
     with open("projects.json", "w") as f:
         json.dump(projects, f, indent=4, sort_keys=True)
 
 
-def validateId(id: str) -> bool:
+def validate_id(id: str) -> bool:
     allowed = set(string.ascii_letters + string.digits + "_" + "-")
     if set(id) <= allowed:
         return True
@@ -139,7 +137,7 @@ def validateId(id: str) -> bool:
 def pledge(
     id: str, amount: int | str, user: str, percentage: bool = False
 ) -> list[dict[str, Any]]:
-    project: dict[str, Any] = loadProjects()[id]
+    project: dict[str, Any] = load_projects()[id]
     if "pledges" not in project.keys():
         project["pledges"] = {}
     if amount == "remaining":
@@ -151,7 +149,7 @@ def pledge(
     if percentage:
         amount = int(project["total"] * (int(amount) / 100))
     project["pledges"][user] = int(amount)
-    writeProject(id, project, user=False)
+    write_project(id, project, user=False)
 
     # Open a slack conversation with the donor and get the channel ID
     r = app.client.conversations_open(users=user)  # type: ignore
@@ -193,10 +191,10 @@ def pledge(
 
         # Mark when the project was funded
         project["funded at"] = int(time.time())
-        writeProject(id, project, user=False)
+        write_project(id, project, user=False)
 
     # Update all promotions
-    message_blocks = displayProject(id) + displaySpacer() + displayDonate(id)
+    message_blocks = display_project(id) + display_spacer() + display_donate(id)
     for promotion in project.get("promotions", []):
         app.client.chat_update(  # type: ignore
             channel=promotion["channel"],
@@ -206,19 +204,19 @@ def pledge(
         )
 
     # Update app home of donor first so they see the updated pledge faster
-    updateHome(user=user, client=app.client)
+    update_home(user=user, client=app.client)
 
     # Update app homes of all donors
     for donor in project.get("pledges", {}):
         if donor != user:
-            updateHome(user=donor, client=app.client)
+            update_home(user=donor, client=app.client)
 
     # Send back an updated project block
-    return displayProject(id) + displaySpacer() + displayDonate(id)
+    return display_project(id) + display_spacer() + display_donate(id)
 
 
-def projectOptions(restricted: str | bool = False, approved: bool = False):
-    projects = loadProjects()
+def project_options(restricted: str | bool = False, approved: bool = False):
+    projects = load_projects()
     options: list[dict[str, Any]] = []
     for project in projects:
         # Don't present funded projects as options
@@ -226,9 +224,8 @@ def projectOptions(restricted: str | bool = False, approved: bool = False):
             continue
 
         # If only approved projects have been requested, skip unapproved projects
-        if approved:
-            if not projects[project].get("approved", False):
-                continue
+        if approved and not projects[project].get("approved", False):
+            continue
 
         if restricted:
             if projects[project]["created by"] == restricted and not projects[
@@ -253,7 +250,7 @@ def projectOptions(restricted: str | bool = False, approved: bool = False):
     return options
 
 
-def slackIdShuffle(field: str, r: bool = False) -> str:
+def slack_id_shuffle(field: str, r: bool = False) -> str:
     # This function is used when we want to disable Slack's input preservation.
     if r:
         return field.split("SHUFFLE")[0]
@@ -261,7 +258,7 @@ def slackIdShuffle(field: str, r: bool = False) -> str:
     return f"{field}SHUFFLE{random_string}"
 
 
-def checkBadCurrency(s: str) -> bool | str:
+def check_bad_currency(s: str) -> bool | str:
     try:
         int(s)
     except ValueError:
@@ -274,12 +271,11 @@ def checkBadCurrency(s: str) -> bool | str:
 
 
 def auth(client, user) -> bool:  # type: ignore
-    r = app.client.usergroups_list(include_users=True)  # type: ignore
+    r = client.usergroups_list(include_users=True)  # type: ignore
     groups: list[dict[str, Any]] = r.data["usergroups"]  # type: ignore
     for group in groups:  # type: ignore
-        if group["id"] == config["admin_group"]:
-            if user in group["users"]:
-                return True
+        if group["id"] == config["admin_group"] and user in group["users"]:
+            return True
     return False
 
 
@@ -287,17 +283,17 @@ def check_if_funded(
     raw_project: dict[str, Any] | None = None, id: str | None = None
 ) -> bool:
     if id and not raw_project:
-        project: dict[str, Any] = getProject(id)
+        project: dict[str, Any] = get_project(id)
     elif raw_project == None:
-        raise Exception("No project provided to check_if_funded")
+        raise ValueError("No project provided to check_if_funded")
     else:
         project = raw_project
 
-    currentp = 0
+    current_pledges = 0
     if "pledges" in project.keys():
         for pledge in project["pledges"]:
-            currentp += int(project["pledges"][pledge])
-    if currentp >= project["total"]:
+            current_pledges += int(project["pledges"][pledge])
+    if current_pledges >= project["total"]:
         return True
     return False
 
@@ -307,9 +303,9 @@ def check_if_old(
 ) -> bool:
     """Returns True if the project was funded more than age_out_threshold days ago"""
     if id and not raw_project:
-        project: dict[str, Any] = getProject(id)
+        project: dict[str, Any] = get_project(id)
     elif raw_project == None:
-        raise Exception("No project provided to check_if_old")
+        raise ValueError("No project provided to check_if_old")
     else:
         project = raw_project
 
@@ -323,7 +319,7 @@ def check_if_old(
     return True
 
 
-def boolToEmoji(b: bool) -> str:
+def bool_to_emoji(b: bool) -> str:
     if b:
         return ":white_check_mark:"
     return ":x:"
@@ -334,14 +330,14 @@ def boolToEmoji(b: bool) -> str:
 #####################
 
 
-def constructEdit(id: str) -> list[dict[str, Any]]:
-    project = getProject(id)
+def construct_edit(project_id: str) -> list[dict[str, Any]]:
+    project = get_project(project_id)
     if not project["img"]:
         project["img"] = ""
-    editbox = [
+    edit_box = [
         {
             "type": "input",
-            "block_id": slackIdShuffle("title"),
+            "block_id": slack_id_shuffle("title"),
             "element": {
                 "type": "plain_text_input",
                 "action_id": "plain_text_input-action",
@@ -358,7 +354,7 @@ def constructEdit(id: str) -> list[dict[str, Any]]:
         },
         {
             "type": "input",
-            "block_id": slackIdShuffle("total"),
+            "block_id": slack_id_shuffle("total"),
             "element": {
                 "type": "plain_text_input",
                 "action_id": "plain_text_input-action",
@@ -373,7 +369,7 @@ def constructEdit(id: str) -> list[dict[str, Any]]:
         },
         {
             "type": "input",
-            "block_id": slackIdShuffle("desc"),
+            "block_id": slack_id_shuffle("desc"),
             "element": {
                 "type": "plain_text_input",
                 "action_id": "plain_text_input-action",
@@ -391,7 +387,7 @@ def constructEdit(id: str) -> list[dict[str, Any]]:
         },
         {
             "type": "input",
-            "block_id": slackIdShuffle("img"),
+            "block_id": slack_id_shuffle("img"),
             "optional": True,
             "element": {
                 "type": "plain_text_input",
@@ -406,29 +402,26 @@ def constructEdit(id: str) -> list[dict[str, Any]]:
             },
         },
     ]
-    # Deprecated selector to pick a project to edit
-    # if project["desc"]:
-    #    editbox = displayEditLoad(id) + displaySpacer() + editbox
 
     # Add docs
-    blocks = editbox + displaySpacer() + displayHelp("create", raw=False)  # type: ignore # When raw is False the return is always a list
+    blocks = edit_box + display_spacer() + display_help("create", raw=False)  # type: ignore # When raw is False the return is always a list
 
-    return blocks  # type: ignore
+    return blocks
 
 
-def displayProject(id: str, bar: bool = True) -> list[dict[str, Any]]:
-    project = getProject(id)
+def display_project(id: str, bar: bool = True) -> list[dict[str, Any]]:
+    project = get_project(id)
     image = "https://github.com/Perth-Artifactory/branding/blob/main/artifactory_logo/png/Artifactory_logo_MARK-HEX_ORANG.png?raw=true"  # default image
     if project["img"]:
         image = project["img"]
-    currentp = 0
+    current_pledges = 0
     backers = 0
     if "pledges" in project.keys():
         for pledge in project["pledges"]:
             backers += 1
-            currentp += int(project["pledges"][pledge])
+            current_pledges += int(project["pledges"][pledge])
     if bar:
-        bar_emoji = createProgressBar(currentp, project["total"]) + " "
+        bar_emoji = create_progress_bar(current_pledges, project["total"]) + " "
     else:
         bar_emoji = ""
     blocks = [
@@ -444,7 +437,7 @@ def displayProject(id: str, bar: bool = True) -> list[dict[str, Any]]:
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f'{bar_emoji}${currentp}/${project["total"]} | {backers} backers\n'
+                "text": f'{bar_emoji}${current_pledges}/${project["total"]} | {backers} backers\n'
                 + f'{project["desc"]} \n'
                 + f'*Created by*: <@{project["created by"]}> *Last updated by*: <@{project["last updated by"]}>',
             },
@@ -459,15 +452,13 @@ def displayProject(id: str, bar: bool = True) -> list[dict[str, Any]]:
     return blocks
 
 
-def displayProjectDetails(id: str) -> list[dict[str, Any]]:
-    project = getProject(id)
+def display_project_details(project_id: str) -> list[dict[str, Any]]:
+    project = get_project(project_id)
 
-    currentp = 0
-    backers = 0
+    current_pledges = 0
     if "pledges" in project.keys():
         for pledge in project["pledges"]:
-            backers += 1
-            currentp += int(project["pledges"][pledge])
+            current_pledges += int(project["pledges"][pledge])
 
     blocks = [
         {
@@ -483,35 +474,35 @@ def displayProjectDetails(id: str) -> list[dict[str, Any]]:
     fields: dict[str, str] = {}
 
     # Approval
-    fields["Approved"] = boolToEmoji(project["approved"])
+    fields["Approved"] = bool_to_emoji(project["approved"])
     if project.get("approved", False) and project.get("approved at", False):
-        fields["Approved at"] = formatDate(
+        fields["Approved at"] = format_date(
             timestamp=project["approved at"], action="Approved at", raw=True
         )
 
     # Funding
-    fields["Funded"] = boolToEmoji(check_if_funded(project))
+    fields["Funded"] = bool_to_emoji(check_if_funded(project))
     if check_if_funded(project) and project.get("funded at", False):
-        fields["Funded at"] = formatDate(
+        fields["Funded at"] = format_date(
             timestamp=project["funded at"], action="Funded at", raw=True
         )
 
     # Invoices sent
-    fields["Invoices sent"] = boolToEmoji(project.get("invoices_sent", False))
+    fields["Invoices sent"] = bool_to_emoji(project.get("invoices_sent", False))
     if project.get("invoices_sent", False):
-        fields["Invoices sent at"] = formatDate(
+        fields["Invoices sent at"] = format_date(
             timestamp=project["invoices_sent"], action="Invoices sent at", raw=True
         )
 
     # Reconciled
-    fields["Reconciled"] = boolToEmoji(project.get("reconciled at", False))
+    fields["Reconciled"] = bool_to_emoji(project.get("reconciled at", False))
     if project.get("reconciled at", False):
-        fields["Reconciled at"] = formatDate(
+        fields["Reconciled at"] = format_date(
             timestamp=project["reconciled at"], action="Reconciled at", raw=True
         )
 
     # DGR
-    fields["DGR"] = boolToEmoji(project.get("dgr", False))
+    fields["DGR"] = bool_to_emoji(project.get("dgr", False))
 
     # Promoted to
     if project.get("promotions", False):
@@ -529,18 +520,18 @@ def displayProjectDetails(id: str) -> list[dict[str, Any]]:
     blocks += [{"type": "section", "fields": field_blocks}]
 
     # Specific pledges
-    blocks += displaySpacer()
-    blocks += displayHeader("Pledges:")
+    blocks += display_spacer()
+    blocks += display_header("Pledges:")
     text = ""
     for pledge in project["pledges"]:
         text += f'• <@{pledge}>: ${project["pledges"][pledge]}\n'
-    text += f'\nTotal: ${currentp}/${project["total"]}\n'
+    text += f'\nTotal: ${current_pledges}/${project["total"]}\n'
     blocks += [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
 
     return blocks
 
 
-def displayApprove(id: str) -> list[dict[str, Any]]:
+def display_approve(id: str) -> list[dict[str, Any]]:
     blocks = [
         {
             "type": "actions",
@@ -572,7 +563,7 @@ def displayApprove(id: str) -> list[dict[str, Any]]:
     return blocks
 
 
-def displayCreate() -> list[dict[str, Any]]:
+def display_create() -> list[dict[str, Any]]:
     blocks = [
         {
             "type": "actions",
@@ -585,7 +576,7 @@ def displayCreate() -> list[dict[str, Any]]:
                         "emoji": True,
                     },
                     "value": "AppHome",
-                    "action_id": "createFromHome",
+                    "action_id": "create_from_home",
                 }
             ],
         }
@@ -593,7 +584,7 @@ def displayCreate() -> list[dict[str, Any]]:
     return blocks
 
 
-def displayAdminActions(id: str) -> list[dict[str, Any]]:
+def display_admin_actions(id: str) -> list[dict[str, Any]]:
     blocks = [
         {
             "type": "actions",
@@ -606,7 +597,7 @@ def displayAdminActions(id: str) -> list[dict[str, Any]]:
                         "emoji": True,
                     },
                     "value": id,
-                    "action_id": "editSpecificProject",
+                    "action_id": "edit_specific_project",
                 },
                 {
                     "type": "button",
@@ -616,7 +607,7 @@ def displayAdminActions(id: str) -> list[dict[str, Any]]:
                         "emoji": True,
                     },
                     "value": id,
-                    "action_id": "projectDetails",
+                    "action_id": "project_details",
                 },
                 {
                     "type": "button",
@@ -627,7 +618,7 @@ def displayAdminActions(id: str) -> list[dict[str, Any]]:
                     },
                     "value": id,
                     "style": "danger",
-                    "confirm": displayConfirm(
+                    "confirm": display_confirm(
                         title="Unapprove project",
                         text="Are you sure you want to unapprove this project? This will remove it from the public list of projects and prevent further donations.",
                         confirm="Yes, unapprove",
@@ -643,7 +634,7 @@ def displayAdminActions(id: str) -> list[dict[str, Any]]:
                         "emoji": True,
                     },
                     "style": "danger",
-                    "confirm": displayConfirm(
+                    "confirm": display_confirm(
                         title="Delete project",
                         text="Are you sure you want to delete this project? This cannot be reversed.",
                         confirm="DELETE",
@@ -658,7 +649,7 @@ def displayAdminActions(id: str) -> list[dict[str, Any]]:
     return blocks
 
 
-def displayConfirm(
+def display_confirm(
     title: str = "Are you sure?",
     text: str = "Do you want to do this?",
     confirm: str = "Yes",
@@ -674,10 +665,10 @@ def displayConfirm(
     return blocks
 
 
-def displayDonate(id: str, user: str | None = None, home: bool = False):
-    homeadd = ""
+def display_donate(id: str, user: str | None = None, home: bool = False):
+    home_add = ""
     if home:
-        homeadd = "_home"
+        home_add = "_home"
 
     # Check if the project has met its goal
     if check_if_funded(id=id):
@@ -697,11 +688,11 @@ def displayDonate(id: str, user: str | None = None, home: bool = False):
         blocks = [
             {
                 "dispatch_action": True,
-                "block_id": slackIdShuffle(id),
+                "block_id": slack_id_shuffle(id),
                 "type": "input",
                 "element": {
                     "type": "plain_text_input",
-                    "action_id": "donateAmount" + homeadd,
+                    "action_id": "donate_amount" + home_add,
                 },
                 "label": {
                     "type": "plain_text",
@@ -720,7 +711,7 @@ def displayDonate(id: str, user: str | None = None, home: bool = False):
                             "emoji": True,
                         },
                         "value": id,
-                        "action_id": "donate10" + homeadd,
+                        "action_id": "donate10" + home_add,
                     },
                     {
                         "type": "button",
@@ -730,7 +721,7 @@ def displayDonate(id: str, user: str | None = None, home: bool = False):
                             "emoji": True,
                         },
                         "value": id,
-                        "action_id": "donate20" + homeadd,
+                        "action_id": "donate20" + home_add,
                     },
                     {
                         "type": "button",
@@ -740,12 +731,12 @@ def displayDonate(id: str, user: str | None = None, home: bool = False):
                             "emoji": True,
                         },
                         "value": id,
-                        "action_id": "donateRest" + homeadd,
+                        "action_id": "donate_rest" + home_add,
                     },
                 ],
             },
         ]
-        project = getProject(id)
+        project = get_project(id)
         if project.get("dgr", False):
             blocks += [
                 {
@@ -759,7 +750,7 @@ def displayDonate(id: str, user: str | None = None, home: bool = False):
                 }
             ]
 
-    project = getProject(id)
+    project = get_project(id)
     # This should really only be used in the App Home since it provides personalised results
 
     # Has the project received pledges?
@@ -769,13 +760,13 @@ def displayDonate(id: str, user: str | None = None, home: bool = False):
             if check_if_funded(id=id):
                 try:
                     blocks[0]["elements"][0]["text"] += f' Thank you for your ${project["pledges"][user]} donation!'  # type: ignore
-                except:
+                except KeyError:
                     raise Exception("Blocks malformed")
             else:
                 # Prefill their existing donation amount.
                 try:
                     blocks[0]["element"]["initial_value"] = str(project["pledges"][user])  # type: ignore
-                except:
+                except KeyError:
                     raise Exception("Blocks malformed")
                 blocks += [
                     {
@@ -793,7 +784,7 @@ def displayDonate(id: str, user: str | None = None, home: bool = False):
     return blocks
 
 
-def displayEditLoad(id: str | bool) -> list[dict[str, Any]]:
+def display_edit_load(project_id: str | bool) -> list[dict[str, Any]]:
     box = [
         {
             "type": "actions",
@@ -801,7 +792,7 @@ def displayEditLoad(id: str | bool) -> list[dict[str, Any]]:
             "elements": [
                 {
                     "type": "external_select",
-                    "action_id": "projectSelector",
+                    "action_id": "project_selector",
                     "placeholder": {
                         "type": "plain_text",
                         "text": "Select a project to update",
@@ -811,20 +802,20 @@ def displayEditLoad(id: str | bool) -> list[dict[str, Any]]:
             ],
         }
     ]
-    if id and type(id) != bool:
-        project: dict[str, Any] = getProject(id)
+    if project_id and isinstance(project_id, str):
+        project: dict[str, Any] = get_project(project_id)
         initial = {
             "text": {"text": project["title"], "type": "plain_text"},
-            "value": id,
+            "value": project_id,
         }
         try:
             box[0]["elements"][0]["initial_option"] = initial  # type: ignore
-        except:
+        except KeyError:
             raise Exception("Blocks malformed")
     return box
 
 
-def displayDetailButton(id: str) -> list[dict[str, Any]]:
+def display_detail_button(id: str) -> list[dict[str, Any]]:
     return [
         {
             "type": "actions",
@@ -837,14 +828,14 @@ def displayDetailButton(id: str) -> list[dict[str, Any]]:
                         "emoji": True,
                     },
                     "value": id,
-                    "action_id": "projectDetails",
+                    "action_id": "project_details",
                 }
             ],
         }
     ]
 
 
-def displayPromoteButton(id: str) -> list[dict[str, Any]]:
+def display_promote_button(id: str) -> list[dict[str, Any]]:
     return [
         {
             "type": "actions",
@@ -857,29 +848,29 @@ def displayPromoteButton(id: str) -> list[dict[str, Any]]:
                         "emoji": True,
                     },
                     "value": id,
-                    "action_id": "promoteSpecificProject_entry",
+                    "action_id": "promote_specific_project_entry",
                 }
             ],
         }
     ]
 
 
-def displaySpacer():
+def display_spacer():
     return [{"type": "divider"}]
 
 
-def displayHeader(s: str) -> list[dict[str, Any]]:
+def display_header(s: str) -> list[dict[str, Any]]:
     return [
         {"type": "header", "text": {"type": "plain_text", "text": s, "emoji": True}}
     ]
 
 
-def displayPromote(id: str | bool = False) -> list[dict[str, Any]]:
+def display_promote() -> list[dict[str, Any]]:
     blocks: list[dict[str, Any]] = []
 
-    help = displayHelp("promote", raw=False)
-    if type(help) == list:
-        blocks += help
+    help_text = display_help("promote", raw=False)
+    if isinstance(help_text, list):
+        blocks += help_text
 
     blocks = [
         {
@@ -902,19 +893,19 @@ def displayPromote(id: str | bool = False) -> list[dict[str, Any]]:
 
 
 # this will be inaccurate if segments * 4 + 2 is not a whole number
-def createProgressBar(current: int | float, total: int, segments: int = 7) -> str:
+def create_progress_bar(current: int | float, total: int, segments: int = 7) -> str:
     segments = segments * 4 + 2
     if current == 0:
         filled = 0
     else:
         percent = 100 * float(current) / float(total)
-        percentagePerSegment = 100.0 / segments
-        if percent < percentagePerSegment:
+        percentage_per_segment = 100.0 / segments
+        if percent < percentage_per_segment:
             filled = 1
-        elif 100 - percent < percentagePerSegment:
+        elif 100 - percent < percentage_per_segment:
             filled = segments
         else:
-            filled = round(percent / percentagePerSegment)
+            filled = round(percent / percentage_per_segment)
     s = "g" * filled + "w" * (segments - filled)
     final_s = ""
 
@@ -933,15 +924,15 @@ def createProgressBar(current: int | float, total: int, segments: int = 7) -> st
     return final_s
 
 
-def formatDate(timestamp: int, action: str, raw: bool = False) -> str:
+def format_date(timestamp: int, action: str, raw: bool = False) -> str:
     if raw:
         # Some fields do not accept Slack's date formatting
         return f"{str(datetime.fromtimestamp(timestamp))}"
     return f"<!date^{timestamp}^{action} {{date_pretty}}|{action} {str(datetime.fromtimestamp(timestamp))}>"
 
 
-def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
-    projects = loadProjects()
+def display_home_projects(user: str, client: WebClient) -> list[dict[str, Any]]:
+    projects = load_projects()
 
     blocks: list[dict[str, Any]] = []
 
@@ -957,7 +948,7 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
             }
         ]
 
-    blocks += displayHeader("Projects seeking donations")
+    blocks += display_header("Projects seeking donations")
     blocks += [
         {
             "type": "section",
@@ -970,20 +961,20 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
 
     for project in projects:
         if projects[project].get("approved", False) and not check_if_funded(id=project):
-            blocks += displayProject(project)
-            blocks += displayDonate(project, user=user, home=True)
-            blocks += displayPromoteButton(id=project)
+            blocks += display_project(project)
+            blocks += display_donate(project, user=user, home=True)
+            blocks += display_promote_button(id=project)
             if auth(user=user, client=client):
-                blocks += displayAdminActions(project)
-            blocks += displaySpacer()
+                blocks += display_admin_actions(project)
+            blocks += display_spacer()
 
-    blocks += displayHeader("Recently funded projects")
+    blocks += display_header("Recently funded projects")
     for project in projects:
         if check_if_funded(id=project) and not check_if_old(id=project):
-            blocks += displayProject(project, bar=False)
+            blocks += display_project(project, bar=False)
             if auth(user=user, client=client):
-                blocks += displayDetailButton(id=project)
-            blocks += displaySpacer()
+                blocks += display_detail_button(id=project)
+            blocks += display_spacer()
 
     if auth(user=user, client=client):
         not_yet_approved: list[str] = []
@@ -991,16 +982,16 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
             if not projects[project].get("approved", False):
                 not_yet_approved.append(project)
 
-        blocks += displayHeader("Projects awaiting approval")
+        blocks += display_header("Projects awaiting approval")
 
         if len(not_yet_approved) > 0:
             for project in not_yet_approved:
-                blocks += displayProject(project)
-                blocks += displayApprove(project)
-                blocks += displaySpacer()
+                blocks += display_project(project)
+                blocks += display_approve(project)
+                blocks += display_spacer()
 
         else:
-            blocks += displayHelp("no_projects_in_queue", raw=False)  # type: ignore # When raw is False the return is always a list
+            blocks += display_help("no_projects_in_queue", raw=False)  # type: ignore # When raw is False the return is always a list
     else:
         not_yet_approved: list[str] = []
         for project in projects:
@@ -1011,21 +1002,21 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
                 not_yet_approved.append(project)
 
         if len(not_yet_approved) > 0:
-            blocks += displayHeader("Your projects awaiting approval")
+            blocks += display_header("Your projects awaiting approval")
             blocks += [
                 {
                     "type": "context",
                     "elements": [
                         {
                             "type": "plain_text",
-                            "text": str(displayHelp("personal_unapproved", raw=True)),
+                            "text": str(display_help("personal_unapproved", raw=True)),
                             "emoji": True,
                         }
                     ],
                 }
             ]
             for project in not_yet_approved:
-                blocks += displayProject(project)
+                blocks += display_project(project)
                 blocks += [
                     {
                         "type": "actions",
@@ -1038,7 +1029,7 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
                                     "emoji": True,
                                 },
                                 "value": project,
-                                "action_id": "editSpecificProject",
+                                "action_id": "edit_specific_project",
                             },
                             {
                                 "type": "button",
@@ -1049,22 +1040,22 @@ def displayHomeProjects(user: str, client: WebClient) -> list[dict[str, Any]]:
                                 },
                                 "value": project,
                                 "style": "primary",
-                                "confirm": displayConfirm(
+                                "confirm": display_confirm(
                                     title="Request Approval",
-                                    text=str(displayHelp("approval", raw=True)),
+                                    text=str(display_help("approval", raw=True)),
                                     confirm="Request approval",
                                     abort="Cancel",
                                 ),
-                                "action_id": "requestProjectApproval",
+                                "action_id": "request_project_approval",
                             },
                         ],
                     }
                 ]
-                blocks += displaySpacer()
-    return blocks  # type: ignore # Every instance of displayHelp used in this function returns a list
+                blocks += display_spacer()
+    return blocks  # type: ignore # Every instance of display_help used in this function returns a list
 
 
-def displayHelp(article: str, raw: bool = False) -> str | list[dict[str, Any]]:
+def display_help(article: str, raw: bool = False) -> str | list[dict[str, Any]]:
     articles: dict[str, str] = {}
     articles["create_CTA"] = (
         "Our space is entirely community driven. If you have an idea for a project that would benefit the space you can create it here."
@@ -1112,24 +1103,24 @@ app = App(token=config["SLACK_BOT_TOKEN"])
 ### Actions ###
 
 
-def updateHome(user: str, client: WebClient) -> None:
+def update_home(user: str, client: WebClient) -> None:
     home_view = {  # type: ignore # When raw is False the return is always a list
         "type": "home",
-        "blocks": displayHomeProjects(client=client, user=user) + displayHeader("How to create a project") + displayHelp("create_CTA", raw=False) + displayCreate(),  # type: ignore # When raw is False the return is always a list
+        "blocks": display_home_projects(client=client, user=user) + display_header("How to create a project") + display_help("create_CTA", raw=False) + display_create(),  # type: ignore # When raw is False the return is always a list
     }
 
     client.views_publish(user_id=user, view=home_view)  # type: ignore
 
 
-@app.view("updateData")  # type: ignore
-def updateData(ack, body: dict[str, Any], client: WebClient):  # type: ignore
+@app.view("update_data")  # type: ignore
+def update_data(ack, body: dict[str, Any], client: WebClient):  # type: ignore
     data = body["view"]["state"]["values"]
     if "private_metadata" in body["view"].keys():
-        id = body["view"]["private_metadata"]
+        project_id = body["view"]["private_metadata"]
     else:
-        id = body["view"]["state"]["values"]["projectDropdown"]["projectSelector"][
-            "selected_option"
-        ][
+        project_id = body["view"]["state"]["values"]["projectDropdown"][
+            "project_selector"
+        ]["selected_option"][
             "value"
         ]  # Gotta be an easier way
 
@@ -1139,9 +1130,9 @@ def updateData(ack, body: dict[str, Any], client: WebClient):  # type: ignore
 
     total_shuffled = False
 
-    # Find our slackIdShuffle'd field
+    # Find our slack_id_shuffle'd field
     for field in data:
-        if slackIdShuffle(field, r=True) == "total":
+        if slack_id_shuffle(field, r=True) == "total":
             total_shuffled = field
 
     if not total_shuffled:
@@ -1151,8 +1142,8 @@ def updateData(ack, body: dict[str, Any], client: WebClient):  # type: ignore
     # Is cost a number
 
     total = data[total_shuffled]["plain_text_input-action"]["value"].replace("$", "")
-    if checkBadCurrency(total):
-        errors[total_shuffled] = checkBadCurrency(total)
+    if check_bad_currency(total):
+        errors[total_shuffled] = check_bad_currency(total)
         ack({"response_action": "errors", "errors": errors})
         return False
     else:
@@ -1160,24 +1151,24 @@ def updateData(ack, body: dict[str, Any], client: WebClient):  # type: ignore
         ack()
 
     # Get existing project info
-    project = getProject(id)
+    project = get_project(project_id)
 
     for v in data:
         # Slack preserves field input when updating a view based on IDs. Because this cannot be disabled we add junk data to each ID to confuse slack.
-        v_clean = slackIdShuffle(v, r=True)
+        v_clean = slack_id_shuffle(v, r=True)
         if v_clean == "total":
             project[v_clean] = total
         else:
             if "plain_text_input-action" in data[v].keys():
                 project[v_clean] = data[v]["plain_text_input-action"]["value"]
-    writeProject(id, project, user)
-    updateHome(user=user, client=client)
+    write_project(project_id, project, user)
+    update_home(user=user, client=client)
 
 
-@app.view("promoteProject")  # type: ignore
-def promoteProject(ack, body: dict[str, Any]):  # type: ignore
+@app.view("promote_project")  # type: ignore
+def promote_project(ack, body: dict[str, Any]):  # type: ignore
     ack()
-    id = body["view"]["private_metadata"]
+    project_id = body["view"]["private_metadata"]
 
     # Channel id we need is double nested inside two dicts with random keys.
     values = body["view"]["state"]["values"]
@@ -1185,7 +1176,7 @@ def promoteProject(ack, body: dict[str, Any]):  # type: ignore
     i2: str = next(iter(values[i]))
     channel: str = values[i][i2]["selected_conversation"]
 
-    title = getProject(id)["title"]
+    title = get_project(project_id)["title"]
 
     # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
     app.client.chat_postMessage(  # type: ignore
@@ -1194,56 +1185,57 @@ def promoteProject(ack, body: dict[str, Any]):  # type: ignore
     )
     promo_msg = app.client.chat_postMessage(  # type: ignore
         channel=channel,
-        blocks=displayProject(id) + displaySpacer() + displayDonate(id),
+        blocks=display_project(project_id)
+        + display_spacer()
+        + display_donate(project_id),
         text=f"Check out our fundraiser for: {title}",
     )
 
     # Log this promotion message
-    logPromotion(id=id, slack_response=promo_msg)
+    log_promotion(project_id=project_id, slack_response=promo_msg)
 
 
-@app.action("projectSelector")  # type: ignore
-def projectSelected(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("project_selector")  # type: ignore
+def project_selected(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
-    id = body["view"]["state"]["values"]["projectDropdown"]["projectSelector"][
+    project_id = body["view"]["state"]["values"]["projectDropdown"]["project_selector"][
         "selected_option"
     ]["value"]
-    # id = body["actions"][0]["selected_option"]["value"]
     view_id = body["container"]["view_id"]
     client.views_update(  # type: ignore
         view_id=view_id,
         view={
             "type": "modal",
             # View identifier
-            "callback_id": "updateData",
+            "callback_id": "update_data",
             "title": {
                 "type": "plain_text",
                 "text": "Update Project",
             },  # project["title"]
             "submit": {"type": "plain_text", "text": "Update!"},
-            "blocks": constructEdit(id=id),
-            "private_metadata": id,
+            "blocks": construct_edit(project_id=project_id),
+            "private_metadata": project_id,
         },
     )
 
 
-@app.action("editSpecificProject")  # type: ignore
-def editSpecificProject(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("edit_specific_project")  # type: ignore
+def edit_specific_project(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
 
-    id = body["actions"][0]["value"]
+    project_id = body["actions"][0]["value"]
     client.views_open(  # type: ignore
         trigger_id=body["trigger_id"],
         view={
             "type": "modal",
-            "callback_id": "updateData",
+            "callback_id": "update_data",
             "title": {
                 "type": "plain_text",
                 "text": "Update Project",
             },
             "submit": {"type": "plain_text", "text": "Update!"},
-            "blocks": constructEdit(id=id),
-            "private_metadata": id,
+            "blocks": construct_edit(project_id=project_id),
+            "private_metadata": project_id,
         },
     )
 
@@ -1255,40 +1247,40 @@ def editSpecificProject(ack, body: dict[str, Any], client: WebClient) -> None:  
 def donate10(ack, body: dict[str, Any]) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = body["actions"][0]["value"]
-    pledge(id, 10, user, percentage=True)
+    project_id: str = body["actions"][0]["value"]
+    pledge(project_id, 10, user, percentage=True)
 
 
 @app.action("donate20")  # type: ignore
 def donate20(ack, body: dict[str, Any]) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = body["actions"][0]["value"]
-    pledge(id, 20, user, percentage=True)
+    project_id: str = body["actions"][0]["value"]
+    pledge(project_id, 20, user, percentage=True)
 
 
-@app.action("donateRest")  # type: ignore
-def donateRest(ack, body: dict[str, Any]) -> None:  # type: ignore
+@app.action("donate_rest")  # type: ignore
+def donate_rest(ack, body: dict[str, Any]) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = body["actions"][0]["value"]
-    pledge(id, "remaining", user)
+    project_id: str = body["actions"][0]["value"]
+    pledge(project_id, "remaining", user)
 
 
-@app.action("donateAmount")  # type: ignore
-def donateAmount(ack, body: dict[str, Any], respond) -> None:  # type: ignore
+@app.action("donate_amount")  # type: ignore
+def donate_amount(ack, body: dict[str, Any], respond) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id = slackIdShuffle(field=body["actions"][0]["block_id"], r=True)
+    project_id = slack_id_shuffle(field=body["actions"][0]["block_id"], r=True)
     amount: str = body["actions"][0]["value"]
-    if checkBadCurrency(amount):
+    if check_bad_currency(amount):
         respond(
-            text=checkBadCurrency(amount),
+            text=check_bad_currency(amount),
             replace_original=False,
             response_type="ephemeral",
         )
     else:
-        pledge(id, amount, user)
+        pledge(project_id, amount, user)
 
 
 # Donate buttons with home update
@@ -1298,69 +1290,64 @@ def donateAmount(ack, body: dict[str, Any], respond) -> None:  # type: ignore
 def donate10_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = body["actions"][0]["value"]
-    pledge(id, 10, user, percentage=True)
+    project_id: str = body["actions"][0]["value"]
+    pledge(project_id, 10, user, percentage=True)
 
 
 @app.action("donate20_home")  # type: ignore
 def donate20_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = body["actions"][0]["value"]
-    pledge(id, 20, user, percentage=True)
+    project_id: str = body["actions"][0]["value"]
+    pledge(project_id, 20, user, percentage=True)
 
 
-@app.action("donateRest_home")  # type: ignore
-def donateRest_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("donate_rest_home")  # type: ignore
+def donate_rest_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = body["actions"][0]["value"]
-    pledge(id, "remaining", user)
+    project_id: str = body["actions"][0]["value"]
+    pledge(project_id, "remaining", user)
 
 
-@app.action("donateAmount_home")  # type: ignore
-def donateAmount_home(ack, body: dict[str, Any], client: WebClient, say) -> None:  # type: ignore
+@app.action("donate_amount_home")  # type: ignore
+def donate_amount_home(ack, body: dict[str, Any], client: WebClient, say) -> None:  # type: ignore
     ack()
     user: str = body["user"]["id"]
-    id: str = slackIdShuffle(field=body["actions"][0]["block_id"], r=True)
+    project_id: str = slack_id_shuffle(field=body["actions"][0]["block_id"], r=True)
     amount: str = body["actions"][0]["value"]
-    if checkBadCurrency(amount):
-        say(text=checkBadCurrency(amount), channel=user)
+    if check_bad_currency(amount):
+        say(text=check_bad_currency(amount), channel=user)
     else:
-        pledge(id, amount, user)
+        pledge(project_id, amount, user)
 
 
-@app.action("conversationSelector")  # type: ignore
-def conversationSelector(ack) -> None:  # type: ignore
+@app.action("conversation_selector")  # type: ignore
+def conversation_selector(ack) -> None:  # type: ignore
     ack()
     # we actually don't want to do anything yet
 
 
-@app.action("projectPreviewSelector")  # type: ignore
-def projectPreviewSelector(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("project_preview_selector")  # type: ignore
+def project_preview_selector(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     view_id: str = body["container"]["view_id"]
-    id: str = body["actions"][0]["selected_option"]["value"]
-
-    """
-    project = getProject(id)
-    """
 
     view = {
         "title": {"type": "plain_text", "text": "Promote project", "emoji": True},
         "submit": {"type": "plain_text", "text": "Promote!", "emoji": True},
         "type": "modal",
-        "blocks": displayPromote(id=id),
+        "blocks": display_promote(),
     }
-    # callback promoteProject
+    # callback promote_project
     client.views_update(  # type: ignore
         view_id=view_id,
         view=view,
     )
 
 
-@app.action("promoteSpecificProject_entry")  # type: ignore
-def promoteSpecificProject_entry(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("promote_specific_project_entry")  # type: ignore
+def promote_specific_project_entry(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     project_id: str = body["actions"][0]["value"]
     client.views_open(  # type: ignore
@@ -1369,32 +1356,32 @@ def promoteSpecificProject_entry(ack, body: dict[str, Any], client: WebClient) -
         view={
             "type": "modal",
             # View identifier
-            "callback_id": "promoteProject",
+            "callback_id": "promote_project",
             "title": {"type": "plain_text", "text": "Promote a pledge"},
             "submit": {"type": "plain_text", "text": "Promote!"},
-            "blocks": displayPromote(id=project_id),
+            "blocks": display_promote(),
             "private_metadata": project_id,
         },
     )
 
 
-@app.action("promoteFromHome")  # type: ignore
-def promoteFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("promote_from_home")  # type: ignore
+def promote_from_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     client.views_open(  # type: ignore
         trigger_id=body["trigger_id"],
         view={
             "type": "modal",
-            "callback_id": "promoteProject",
+            "callback_id": "promote_project",
             "title": {"type": "plain_text", "text": "Promote a pledge"},
             "submit": {"type": "plain_text", "text": "Promote!"},
-            "blocks": displayPromote(id=False),
+            "blocks": display_promote(),
         },
     )
 
 
-@app.action("updateFromHome")  # type: ignore
-def updateFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("update_from_home")  # type: ignore
+def update_from_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     client.views_open(  # type: ignore
         trigger_id=body["trigger_id"],
@@ -1403,28 +1390,30 @@ def updateFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # typ
             "callback_id": "loadProject",
             "title": {"type": "plain_text", "text": "Select Project"},
             "submit": {"type": "plain_text", "text": "Update!"},
-            "blocks": displayEditLoad(id=False),
+            "blocks": display_edit_load(project_id=False),
         },
     )
 
 
-@app.action("createFromHome")  # type: ignore
-def createFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("create_from_home")  # type: ignore
+def create_from_home(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
     # pick a new id
-    id: str = "".join(random.choices(string.ascii_letters + string.digits, k=16))
-    while id in loadProjects().keys():
-        id = "".join(random.choices(string.ascii_letters + string.digits, k=16))
+    project_id: str = "".join(
+        random.choices(string.ascii_letters + string.digits, k=16)
+    )
+    while project_id in load_projects().keys():
+        project_id = "".join(random.choices(string.ascii_letters + string.digits, k=16))
     client.views_open(  # type: ignore
         trigger_id=body["trigger_id"],
         view={
             "type": "modal",
             # View identifier
-            "callback_id": "updateData",
+            "callback_id": "update_data",
             "title": {"type": "plain_text", "text": "Create a pledge"},
             "submit": {"type": "plain_text", "text": "Create!"},
-            "private_metadata": id,
-            "blocks": constructEdit(id=id),
+            "private_metadata": project_id,
+            "blocks": construct_edit(project_id=project_id),
         },
     )
 
@@ -1432,16 +1421,16 @@ def createFromHome(ack, body: dict[str, Any], client: WebClient) -> None:  # typ
 @app.action("approve")  # type: ignore
 def approve(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
-    id: str = body["actions"][0]["value"]
+    project_id: str = body["actions"][0]["value"]
     user: str = body["user"]["id"]
-    project: dict[str, Any] = getProject(id)
+    project: dict[str, Any] = get_project(project_id)
 
     # Projects approved in this function should be marked as DGR ineligible
     project["dgr"] = False
 
     project["approved"] = True
     project["approved_at"] = int(time.time())
-    writeProject(id, project, user=False)
+    write_project(project_id, project, user=False)
 
     # Open a slack conversation with the creator and get the channel ID
     r = app.client.conversations_open(users=project["created by"])  # type: ignore
@@ -1466,7 +1455,7 @@ def approve(ack, body: dict[str, Any], client: WebClient) -> None:  # type: igno
                         "emoji": True,
                     },
                     "value": id,
-                    "action_id": "promoteSpecificProject_entry",
+                    "action_id": "promote_specific_project_entry",
                 },
             }
         ],
@@ -1503,19 +1492,19 @@ def approve(ack, body: dict[str, Any], client: WebClient) -> None:  # type: igno
             as_user=True,
         )
 
-    updateHome(user=user, client=client)
+    update_home(user=user, client=client)
 
 
 @app.action("approve_as_dgr")  # type: ignore
 def approve_as_dgr(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
-    id: str = body["actions"][0]["value"]
+    project_id: str = body["actions"][0]["value"]
     user: str = body["user"]["id"]
-    project: dict[str, Any] = getProject(id)
+    project: dict[str, Any] = get_project(project_id)
     project["approved"] = True
     project["approved_at"] = int(time.time())
     project["dgr"] = True
-    writeProject(id, project, user=False)
+    write_project(project_id, project, user=False)
 
     # Open a slack conversation with the creator and get the channel ID
     r = app.client.conversations_open(users=project["created by"])  # type: ignore
@@ -1540,7 +1529,7 @@ def approve_as_dgr(ack, body: dict[str, Any], client: WebClient) -> None:  # typ
                         "emoji": True,
                     },
                     "value": id,
-                    "action_id": "promoteSpecificProject_entry",
+                    "action_id": "promote_specific_project_entry",
                 },
             }
         ],
@@ -1580,41 +1569,41 @@ def approve_as_dgr(ack, body: dict[str, Any], client: WebClient) -> None:  # typ
             as_user=True,
         )
 
-    updateHome(user=user, client=client)
+    update_home(user=user, client=client)
 
 
 @app.action("unapprove")  # type: ignore
 def unapprove(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
-    id: str = body["actions"][0]["value"]
+    project_id: str = body["actions"][0]["value"]
     user: str = body["user"]["id"]
 
-    unapproveProject(id)
+    unapprove_project(project_id)
 
-    updateHome(user=user, client=client)
+    update_home(user=user, client=client)
 
 
 @app.action("delete")  # type: ignore
 def delete(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
-    id: str = body["actions"][0]["value"]
+    project_id: str = body["actions"][0]["value"]
     user: str = body["user"]["id"]
 
-    deleteProject(id)
+    delete_project(project_id)
 
-    updateHome(user=user, client=client)
+    update_home(user=user, client=client)
 
 
-@app.action("projectDetails")  # type: ignore
-def projectDetails(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("project_details")  # type: ignore
+def project_details(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
-    id = body["actions"][0]["value"]
+    project_id = body["actions"][0]["value"]
     client.views_open(  # type: ignore
         trigger_id=body["trigger_id"],
         view={
             "type": "modal",
             "title": {"type": "plain_text", "text": "Project Details"},
-            "blocks": displayProjectDetails(id=id),
+            "blocks": display_project_details(project_id=project_id),
         },
     )
 
@@ -1622,9 +1611,9 @@ def projectDetails(ack, body: dict[str, Any], client: WebClient) -> None:  # typ
 @app.action("sendInvoices")  # type: ignore
 def invoice(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
-    id: str = body["actions"][0]["value"]
+    project_id: str = body["actions"][0]["value"]
     user: str = body["user"]["id"]
-    project: dict[str, Any] = getProject(id)
+    project: dict[str, Any] = get_project(project_id)
 
     # Get reply method
     # Coming from a modal, typically home
@@ -1676,7 +1665,7 @@ def invoice(ack, body: dict[str, Any], client: WebClient) -> None:  # type: igno
         raise Exception("Could not get reply method for invoicing")
 
     # Initiate the invoice process
-    outcome: str = utils.project_output.send_invoices_lib(id)
+    outcome: str = utils.project_output.send_invoices_lib(project_id)
     sent: bool = True if "Error:" not in outcome[:6] else False
 
     # If we came from a message we can add the trigger button back in if the invoicing failed
@@ -1702,12 +1691,12 @@ def invoice(ack, body: dict[str, Any], client: WebClient) -> None:  # type: igno
     )
 
 
-@app.action("requestProjectApproval")  # type: ignore
-def requestProjectApproval(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.action("request_project_approval")  # type: ignore
+def request_project_approval(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     ack()
-    id: str = body["actions"][0]["value"]
+    project_id: str = body["actions"][0]["value"]
     user: str = body["user"]["id"]
-    project: dict[str, Any] = getProject(id)
+    project: dict[str, Any] = get_project(project_id)
 
     # Send prompt to admins
     blocks = [
@@ -1719,8 +1708,8 @@ def requestProjectApproval(ack, body: dict[str, Any], client: WebClient) -> None
             },
         }
     ]
-    blocks += displayProject(id)
-    blocks += displayApprove(id)
+    blocks += display_project(project_id)
+    blocks += display_approve(project_id)
 
     app.client.chat_postMessage(  # type: ignore
         channel=config["admin_channel"],
@@ -1738,29 +1727,29 @@ def requestProjectApproval(ack, body: dict[str, Any], client: WebClient) -> None
         text=f'Your project "{project["title"]}" has been submitted for approval.',
     )
 
-    updateHome(user=user, client=client)
+    update_home(user=user, client=client)
 
 
 ### info ###
 
 
-@app.options("projectSelector")  # type: ignore
-def projectSelector(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+@app.options("project_selector")  # type: ignore
+def project_selector(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
     if auth(user=body["user"]["id"], client=client):
-        ack(options=projectOptions())
+        ack(options=project_options())
     else:
-        ack(options=projectOptions(restricted=body["user"]["id"], approved=False))
+        ack(options=project_options(restricted=body["user"]["id"], approved=False))
 
 
-@app.options("projectPreviewSelector")  # type: ignore
-def projectPreviewSelector_opt(ack) -> None:  # type: ignore
-    ack(options=projectOptions(approved=True))
+@app.options("project_preview_selector")  # type: ignore
+def project_preview_selector_opt(ack) -> None:  # type: ignore
+    ack(options=project_options(approved=True))
 
 
 # Update the app home
 @app.event("app_home_opened")  # type: ignore
 def app_home_opened(event: dict[str, Any], client: WebClient) -> None:
-    updateHome(user=event["user"], client=client)
+    update_home(user=event["user"], client=client)
 
 
 # Get TidyHQ org details
