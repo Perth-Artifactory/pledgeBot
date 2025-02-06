@@ -18,7 +18,7 @@ with open("config.json", "r") as f:
 start_from = int(datetime(2023, 7, 1, 0, 0, 0, tzinfo=timezone.utc).timestamp())
 end_at = int(datetime(2024, 6, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp())
 
-changes = None
+changes = "all"
 # changes = "+1"
 if changes == None:
     pass
