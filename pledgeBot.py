@@ -76,13 +76,15 @@ def write_project(id: str, data: dict[str, Any], user: str | bool):
             # Send a notice to the project creator if they're not the one updating it
             if data["created by"] != user:
                 # Open a slack conversation with the creator and get the channel ID
-                r: SlackResponse = app.client.conversations_open(users=data["created by"])  # type: ignore
+                r: SlackResponse = app.client.conversations_open(
+                    users=data["created by"]
+                )  # type: ignore
                 channel_id: str = str(r["channel"]["id"])  # type: ignore
 
                 # Notify the creator
                 app.client.chat_postMessage(  # type: ignore
                     channel=channel_id,
-                    text=f'A project you created ({data["title"]}) has been updated by <@{user}>.',
+                    text=f"A project you created ({data['title']}) has been updated by <@{user}>.",
                 )
 
         projects[id] = data
@@ -159,7 +161,7 @@ def pledge(
 
     app.client.chat_postMessage(  # type: ignore
         channel=channel_id,  # type: ignore
-        text=f'We\'ve updated your *total* pledge for "{project["title"]}" to ${amount}. Thank you for your support!\n\nOnce the project is fully funded I\'ll be in touch to arrange payment.',
+        text=f"We've updated your *total* pledge for \"{project['title']}\" to ${amount}. Thank you for your support!\n\nOnce the project is fully funded I'll be in touch to arrange payment.",
     )
 
     # Check if the project has met its goal
@@ -437,9 +439,9 @@ def display_project(id: str, bar: bool = True) -> list[dict[str, Any]]:
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f'{bar_emoji}${current_pledges}/${project["total"]} | {backers} backers\n'
-                + f'{project["desc"]} \n'
-                + f'*Created by*: <@{project["created by"]}> *Last updated by*: <@{project["last updated by"]}>',
+                "text": f"{bar_emoji}${current_pledges}/${project['total']} | {backers} backers\n"
+                + f"{project['desc']} \n"
+                + f"*Created by*: <@{project['created by']}> *Last updated by*: <@{project['last updated by']}>",
             },
             "accessory": {
                 "type": "image",
@@ -508,7 +510,7 @@ def display_project_details(project_id: str) -> list[dict[str, Any]]:
     if project.get("promotions", False):
         channels = ""
         for promotion in project["promotions"]:
-            channels += f'<#{promotion["channel"]}> '
+            channels += f"<#{promotion['channel']}> "
         fields["Promotions"] = channels
 
     # Generate field block
@@ -524,8 +526,8 @@ def display_project_details(project_id: str) -> list[dict[str, Any]]:
     blocks += display_header("Pledges:")
     text = ""
     for pledge in project["pledges"]:
-        text += f'• <@{pledge}>: ${project["pledges"][pledge]}\n'
-    text += f'\nTotal: ${current_pledges}/${project["total"]}\n'
+        text += f"• <@{pledge}>: ${project['pledges'][pledge]}\n"
+    text += f"\nTotal: ${current_pledges}/${project['total']}\n"
     blocks += [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
 
     return blocks
@@ -744,7 +746,7 @@ def display_donate(id: str, user: str | None = None, home: bool = False):
                     "elements": [
                         {
                             "type": "mrkdwn",
-                            "text": f'Donations to this project are considered gifts to {tidyhq_org["name"]} and are <{config["tax_info"]}|tax deductible>.',
+                            "text": f"Donations to this project are considered gifts to {tidyhq_org['name']} and are <{config['tax_info']}|tax deductible>.",
                         }
                     ],
                 }
@@ -759,13 +761,17 @@ def display_donate(id: str, user: str | None = None, home: bool = False):
         if user in project["pledges"]:
             if check_if_funded(id=id):
                 try:
-                    blocks[0]["elements"][0]["text"] += f' Thank you for your ${project["pledges"][user]} donation!'  # type: ignore
+                    blocks[0]["elements"][0]["text"] += (
+                        f" Thank you for your ${project['pledges'][user]} donation!"  # type: ignore
+                    )
                 except KeyError:
                     raise Exception("Blocks malformed")
             else:
                 # Prefill their existing donation amount.
                 try:
-                    blocks[0]["element"]["initial_value"] = str(project["pledges"][user])  # type: ignore
+                    blocks[0]["element"]["initial_value"] = str(
+                        project["pledges"][user]
+                    )  # type: ignore
                 except KeyError:
                     raise Exception("Blocks malformed")
                 blocks += [
@@ -774,7 +780,7 @@ def display_donate(id: str, user: str | None = None, home: bool = False):
                         "elements": [
                             {
                                 "type": "plain_text",
-                                "text": f'Thanks for your ${ project["pledges"][user]} donation! You can update your pledge using the buttons above.',
+                                "text": f"Thanks for your ${project['pledges'][user]} donation! You can update your pledge using the buttons above.",
                                 "emoji": True,
                             }
                         ],
@@ -936,6 +942,20 @@ def display_home_projects(user: str, client: WebClient) -> list[dict[str, Any]]:
 
     blocks: list[dict[str, Any]] = []
 
+    # Convert home to placeholder
+    blocks += display_header("This system has moved!")
+    blocks += [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": ":warning: Fundraising functionality has been incorporated into the <https://members.artifactory.org.au/pledges|Member Portal> (<@U09T9DAKQ49>)",
+            },
+        }
+    ]
+
+    return blocks
+
     # Let admins know that they're seeing extra stuff on this page
     if auth(user=user, client=client):
         blocks += [
@@ -943,7 +963,7 @@ def display_home_projects(user: str, client: WebClient) -> list[dict[str, Any]]:
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f':warning: As a member of <!subteam^{config["admin_group"]}> you have some extra options available to you. Please use them responsibly and assume that *donor information is confidential* unless the donor has explicitly stated otherwise.',
+                    "text": f":warning: As a member of <!subteam^{config['admin_group']}> you have some extra options available to you. Please use them responsibly and assume that *donor information is confidential* unless the donor has explicitly stated otherwise.",
                 },
             }
         ]
@@ -1106,7 +1126,7 @@ app = App(token=config["SLACK_BOT_TOKEN"])
 def update_home(user: str, client: WebClient) -> None:
     home_view = {  # type: ignore # When raw is False the return is always a list
         "type": "home",
-        "blocks": display_home_projects(client=client, user=user) + display_header("How to create a project") + display_help("create_CTA", raw=False) + display_create(),  # type: ignore # When raw is False the return is always a list
+        "blocks": display_home_projects(client=client, user=user),
     }
 
     client.views_publish(user_id=user, view=home_view)  # type: ignore
@@ -1120,9 +1140,7 @@ def update_data(ack, body: dict[str, Any], client: WebClient):  # type: ignore
     else:
         project_id = body["view"]["state"]["values"]["projectDropdown"][
             "project_selector"
-        ]["selected_option"][
-            "value"
-        ]  # Gotta be an easier way
+        ]["selected_option"]["value"]  # Gotta be an easier way
 
     user = body["user"]["id"]
     # Validation
@@ -1181,7 +1199,7 @@ def promote_project(ack, body: dict[str, Any]):  # type: ignore
     # Add promoting as a separate message so it can be removed by a Slack admin if desired. (ie when promoted as part of a larger post)
     app.client.chat_postMessage(  # type: ignore
         channel=channel,
-        text=f'<@{body["user"]["id"]}> has promoted a project, check it out!',
+        text=f"<@{body['user']['id']}> has promoted a project, check it out!",
     )
     promo_msg = app.client.chat_postMessage(  # type: ignore
         channel=channel,
@@ -1347,7 +1365,9 @@ def project_preview_selector(ack, body: dict[str, Any], client: WebClient) -> No
 
 
 @app.action("promote_specific_project_entry")  # type: ignore
-def promote_specific_project_entry(ack, body: dict[str, Any], client: WebClient) -> None:  # type: ignore
+def promote_specific_project_entry(
+    ack, body: dict[str, Any], client: WebClient
+) -> None:  # type: ignore
     ack()
     project_id: str = body["actions"][0]["value"]
     client.views_open(  # type: ignore
@@ -1687,7 +1707,9 @@ def invoice(ack, body: dict[str, Any], client: WebClient) -> None:  # type: igno
 
     # Add invoicing details as reply to the notification
     app.client.chat_postMessage(  # type: ignore
-        channel=config["admin_channel"], thread_ts=reply, text=outcome  # type: ignore
+        channel=config["admin_channel"],
+        thread_ts=reply,
+        text=outcome,  # type: ignore
     )
 
 
